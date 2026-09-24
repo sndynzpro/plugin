@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SubFX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:ital,wght@0,400;0,700;0,800;0,900;1,900&family=Poppins:wght@400;600;700;800;900&family=Bebas+Neue&family=Anton&family=Luckiest+Guy&family=Bangers&family=Archivo+Black&family=Oswald:wght@500;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ───────────── Cabecera ───────────── -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M18.5 13.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor"/></svg>
+      </div>
+      <div class="brand-text">
+        <strong>SubFX</strong><span>Studio</span>
+      </div>
+    </div>
+    <div class="conn" id="connPill"><i></i><span>Conectando…</span></div>
+    <div class="top-actions">
+      <button class="btn ghost" id="btnUndo" title="Deshacer (Ctrl+Z)">
+        <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg>
+      </button>
+      <button class="btn ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)">
+        <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg>
+      </button>
+      <button class="btn" id="btnLoad">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+        <span>Cargar .srt</span>
+      </button>
+      <input type="file" id="fileSrt" accept=".srt,.vtt,.txt" hidden>
+      <button class="btn primary" id="btnExportTop">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <span>Enviar a Premiere</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ───────────── Columna izquierda ───────────── -->
+  <main class="col-main">
+    <section class="card preview-card">
+      <div class="stage" id="stage">
+        <div class="stage-inner" id="stageInner">
+          <canvas id="preview"></canvas>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="play" id="btnPlay" title="Reproducir / pausar (Espacio)">
+          <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+        </button>
+        <div class="timecode" id="timeLabel">00:00.0</div>
+        <div class="timeline" id="timeline">
+          <div class="tl-cues" id="tlCues"></div>
+          <div class="tl-head" id="tlHead"></div>
+        </div>
+        <select class="mini-select" id="selBg" title="Fondo de la vista previa">
+          <option value="checker">Transparente</option>
+          <option value="dark">Oscuro</option>
+          <option value="scene">Escena</option>
+          <option value="green">Croma</option>
+          <option value="image">Imagen…</option>
+        </select>
+        <input type="file" id="bgFile" accept="image/*" hidden>
+      </div>
+    </section>
+
+    <section class="card subs-card">
+      <div class="card-head">
+        <h2>Subtítulos</h2>
+        <span class="sel-count" id="selCount">0 seleccionadas</span>
+      </div>
+      <div class="subs-tools">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+          <input id="search" type="text" placeholder="Buscar y seleccionar palabra…" autocomplete="off">
+        </div>
+        <div class="quick" id="quick">
+          <button data-q="all">Todas</button>
+          <button data-q="none">Ninguna</button>
+          <button data-q="invert">Invertir</button>
+          <button data-q="same" title="Todas las apariciones de las palabras seleccionadas">Iguales</button>
+          <button data-q="numbers">Números</button>
+          <button data-q="long" title="Palabras de 7 letras o más">Largas</button>
+          <button data-q="fx">Con efecto</button>
+        </div>
+      </div>
+      <div class="hint">Haz clic en las palabras para seleccionarlas · <kbd>Shift</kbd> para un rango · doble clic para corregir el texto</div>
+      <div class="cue-list" id="cueList"></div>
+      <div class="empty" id="emptyState" hidden>
+        <div class="empty-icon">SRT</div>
+        <p>Arrastra aquí un archivo <b>.srt</b> o pulsa <b>Cargar .srt</b></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ───────────── Columna derecha (inspector) ───────────── -->
+  <aside class="col-side card">
+    <nav class="tabs">
+      <button class="tab active" data-tab="fx">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.3L20 9l-4.4 3.8L17 19l-5-3-5 3 1.4-6.2L4 9l5.8-.7z"/></svg>Efectos
+      </button>
+      <button class="tab" data-tab="style">
+        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg>Estilos
+      </button>
+      <button class="tab" data-tab="export">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>Exportar
+      </button>
+    </nav>
+
+    <!-- Efectos -->
+    <div class="tab-panel active" id="tab-fx">
+      <div class="sel-banner" id="fxSelInfo"></div>
+      <div class="seg" id="fxCats">
+        <button class="active" data-cat="">Todos</button>
+        <button data-cat="in">Entrada</button>
+        <button data-cat="hit">Énfasis</button>
+        <button data-cat="loop">Continuo</button>
+      </div>
+      <div class="fx-grid" id="fxGrid"></div>
+
+      <div class="group" id="wordProps">
+        <div class="group-title">Personalizar palabras seleccionadas</div>
+        <div class="field">
+          <label>Color del texto</label>
+          <div class="swatches" id="swText"></div>
+        </div>
+        <div class="field">
+          <label>Color del efecto</label>
+          <div class="swatches" id="swFx"></div>
+        </div>
+        <div class="field range">
+          <label>Tamaño <output id="ovScaleOut">100%</output></label>
+          <input type="range" id="ovScale" min="50" max="220" step="5" value="100">
+        </div>
+        <div class="field range">
+          <label>Intensidad <output id="ovIntOut">100%</output></label>
+          <input type="range" id="ovInt" min="0" max="250" step="5" value="100">
+        </div>
+        <div class="field range">
+          <label>Velocidad <output id="ovSpeedOut">100%</output></label>
+          <input type="range" id="ovSpeed" min="25" max="300" step="5" value="100">
+        </div>
+        <div class="row-btns">
+          <button class="btn small" id="btnFxRemove">Quitar efecto</button>
+          <button class="btn small" id="btnWordReset">Restablecer palabra</button>
+          <button class="btn small" id="btnPreviewSel">▶ Ver</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estilos -->
+    <div class="tab-panel" id="tab-style">
+      <div class="style-gallery" id="styleGallery"></div>
+      <div class="row-btns wrap" id="styleActions">
+        <button class="btn small" data-act="dup">Duplicar</button>
+        <button class="btn small" data-act="rename">Renombrar</button>
+        <button class="btn small" data-act="reset">Restablecer</button>
+        <button class="btn small danger" data-act="delete">Eliminar</button>
+        <button class="btn small" data-act="export">Exportar</button>
+        <button class="btn small" data-act="import">Importar</button>
+        <input type="file" id="styleFile" accept=".json" hidden>
+      </div>
+      <div id="styleEditor"></div>
+    </div>
+
+    <!-- Exportar -->
+    <div class="tab-panel" id="tab-export">
+      <div class="seq-card" id="seqInfo"></div>
+      <div class="group">
+        <div class="group-title">Formato</div>
+        <div class="field">
+          <label>Resolución</label>
+          <select id="expFormat">
+            <option value="auto">Igual que la secuencia</option>
+            <option value="1920x1080">1920 × 1080 (16:9)</option>
+            <option value="1080x1920">1080 × 1920 (9:16 vertical)</option>
+            <option value="1080x1080">1080 × 1080 (1:1)</option>
+            <option value="1080x1350">1080 × 1350 (4:5)</option>
+            <option value="3840x2160">3840 × 2160 (4K)</option>
+            <option value="1280x720">1280 × 720</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fotogramas por segundo</label>
+          <select id="expFps">
+            <option value="auto">Igual que la secuencia</option>
+            <option value="23.976">23.976</option><option value="24">24</option>
+            <option value="25">25</option><option value="29.97">29.97</option>
+            <option value="30">30</option><option value="50">50</option>
+            <option value="59.94">59.94</option><option value="60">60</option>
+          </select>
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title">Línea de tiempo</div>
+        <div class="field">
+          <label>Pista de vídeo destino</label>
+          <select id="expTrack"></select>
+        </div>
+        <div class="field">
+          <label>Colocar desde</label>
+          <select id="expStart">
+            <option value="zero">El inicio de la secuencia (00:00)</option>
+            <option value="playhead">La posición del cabezal</option>
+          </select>
+        </div>
+        <div class="field range">
+          <label>Desfase de sincronía <output id="expOffsetOut">0 ms</output></label>
+          <input type="range" id="expOffset" min="-2000" max="2000" step="20" value="0">
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title">Archivos</div>
+        <div class="field">
+          <label>Carpeta de renderizado</label>
+          <div class="path-row">
+            <input type="text" id="expDir" placeholder="Documentos/SubFX Renders">
+            <button class="btn small" id="btnDir">Elegir…</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn primary big" id="btnExport">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        Renderizar e insertar en Premiere
+      </button>
+      <div class="progress" id="expProgress" hidden>
+        <div class="bar"><i id="expBar"></i></div>
+        <div class="progress-row">
+          <span id="expStatus">Preparando…</span>
+          <button class="btn small" id="btnCancel">Cancelar</button>
+        </div>
+      </div>
+      <div class="row-btns">
+        <button class="btn small" id="btnFrame">Descargar fotograma PNG</button>
+      </div>
+      <p class="note">Cada subtítulo se renderiza como una secuencia PNG con transparencia y se coloca en la pista elegida, sincronizado con los tiempos del .srt. Los fotogramas idénticos se reutilizan para acelerar el proceso.</p>
+    </div>
+  </aside>
+</div>
+
+<div class="drop-overlay" id="dropOverlay"><div>Suelta tu archivo .srt</div></div>
+<div class="toasts" id="toasts"></div>
+
+<script src="js/effects.js"></script>
+<script src="js/styles.js"></script>
+<script src="js/srt.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/cep.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+1
+00:00:00,300 --> 00:00:02,600
+Esto es SubFX Studio para Premiere Pro
+
+2
+00:00:02,700 --> 00:00:05,200
+Selecciona cualquier palabra y dale un efecto increíble
+
+3
+00:00:05,300 --> 00:00:07,900
+Cambia colores, fuentes y estilos a tu gusto
+
+4
+00:00:08,000 --> 00:00:10,600
+Gana 10000 seguidores con subtítulos virales
+
+5
+00:00:10,700 --> 00:00:13,200
+Y exporta todo directo a tu línea de tiempo

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.zxp
+.DS_Store
+Thumbs.db
