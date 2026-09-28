@@ -135,7 +135,7 @@
       cues: parsed.map(c => ({
         id: newId('c'), start: c.start, end: c.end, speaker: c.speaker || '',
         layer: Math.min(MAX_LAYERS - 1, Math.max(0, speakers.indexOf(c.speaker))),
-        words: splitWords(c.text)
+        words: c.words ? c.words.map(w => ({ id: newId('w'), text: w.text, ovr: {}, t0: w.t0, t1: w.t1 })) : splitWords(c.text)
       }))
     };
   }
@@ -548,6 +548,10 @@
     c.classList.toggle('has-fx', !!fx);
     c.classList.toggle('key', !!o.key);
     c.classList.toggle('em', !!o.em);
+    c.classList.toggle('br', !!o.br);
+    c.classList.toggle('cut', !!o.cut);
+    c.classList.toggle('boxed', !!o.boxColor);
+    c.style.setProperty('--bc', o.boxColor || 'transparent');
     if (o.em) {
       const info = wordMap.get(w.id);
       const ems = info ? info.cue.words.filter(x => x.ovr && x.ovr.em) : [];
@@ -558,6 +562,9 @@
     const bits = [];
     if (o.key) bits.push('Palabra clave');
     if (o.em) bits.push('Énfasis');
+    if (o.boxColor) bits.push('Caja: ' + o.boxColor);
+    if (o.br) bits.push('Salto de línea antes');
+    if (o.cut) bits.push('Nuevo bloque desde aquí');
     if (fx) bits.push('Efecto: ' + fx.name);
     if (o.color) bits.push('Color: ' + o.color);
     if (o.scale && o.scale !== 1) bits.push('Tamaño: ' + Math.round(o.scale * 100) + '%');
@@ -724,6 +731,11 @@
     $('#btnAddCue').addEventListener('click', addCue);
     $('#btnAddParallel').addEventListener('click', addParallel);
     $('#btnAutoKey').addEventListener('click', autoKeywords);
+    $('#btnSplit').addEventListener('click', splitCue);
+    $('#btnMerge').addEventListener('click', mergeCue);
+    $('#btnShift').addEventListener('click', shiftAll);
+    $('#btnRetime').addEventListener('click', retime);
+    $('#btnBake').addEventListener('click', bakeChunks);
   }
 
   function replaceAll() {
@@ -774,6 +786,101 @@
     onCuesReplaced();
     editCueText(cue);
     toast(`Línea paralela en la capa ${layer + 1} · ${S.layers[layer].name}`, 'ok');
+  }
+
+  /** Tiempo (en segundos) en que empieza a decirse una palabra, según los bloques actuales. */
+  function wordStart(w) {
+    for (const ch of chunks) for (const x of ch.words) if (x.ref === w) return x.ws;
+    return typeof w.t0 === 'number' ? w.t0 : null;
+  }
+
+  function splitCue() {
+    const id = wordOrder.find(i => S.selection.has(i));
+    if (!id) { toast('Selecciona la palabra donde empieza el nuevo subtítulo', 'warn'); return; }
+    const { word, cue } = wordMap.get(id);
+    const idx = cue.words.indexOf(word);
+    if (idx <= 0) { toast('Elige una palabra que no sea la primera del subtítulo', 'warn'); return; }
+    const t = wordStart(word);
+    snapshot();
+    const cut = Math.max(cue.start + 0.05, Math.min(cue.end - 0.05, t == null ? (cue.start + cue.end) / 2 : t));
+    const next = { id: newId('c'), start: cut, end: cue.end, layer: cue.layer || 0, speaker: cue.speaker || '', words: cue.words.slice(idx) };
+    cue.words = cue.words.slice(0, idx);
+    cue.end = cut;
+    S.cues.push(next);
+    onCuesReplaced();
+    toast('Subtítulo dividido', 'ok', 1600);
+  }
+
+  function mergeCue() {
+    const cue = currentCue();
+    if (!cue) { toast('Selecciona una palabra del subtítulo que quieres unir', 'warn'); return; }
+    const same = S.cues.filter(c => (c.layer || 0) === (cue.layer || 0));
+    const next = same[same.indexOf(cue) + 1];
+    if (!next) { toast('No hay un subtítulo siguiente en esta capa', 'warn'); return; }
+    snapshot();
+    cue.words = cue.words.concat(next.words);
+    cue.end = Math.max(cue.end, next.end);
+    S.cues = S.cues.filter(c => c !== next);
+    onCuesReplaced();
+    toast('Subtítulos unidos', 'ok', 1600);
+  }
+
+  function shiftAll() {
+    const ms = +$('#tShift').value || 0;
+    if (!ms || !S.cues.length) return;
+    snapshot();
+    const d = ms / 1000;
+    S.cues.forEach(c => {
+      c.start = Math.max(0, c.start + d);
+      c.end = Math.max(c.start + 0.05, c.end + d);
+      c.words.forEach(w => { if (typeof w.t0 === 'number') { w.t0 += d; w.t1 += d; } });
+    });
+    onCuesReplaced();
+    toast(`Subtítulos desplazados ${ms > 0 ? '+' : ''}${ms} ms`, 'ok');
+  }
+
+  /** Duración mínima/máxima, separación y velocidad de lectura, por capa. */
+  function retime() {
+    if (!S.cues.length) return;
+    const min = Math.max(0, +$('#tMin').value || 0), max = +$('#tMax').value || 0;
+    const gap = Math.max(0, +$('#tGap').value || 0), cps = +$('#tCps').value || 0;
+    snapshot();
+    let changed = 0;
+    S.layers.forEach((l, li) => {
+      const list = S.cues.filter(c => (c.layer || 0) === li).sort((a, b) => a.start - b.start);
+      list.forEach((c, i) => {
+        const next = list[i + 1];
+        const before = c.end;
+        const chars = c.words.reduce((a, w) => a + w.text.length + 1, 0);
+        let want = Math.max(c.end - c.start, min, cps ? chars / cps : 0);
+        if (max) want = Math.min(want, max);
+        let end = c.start + want;
+        if (next) end = Math.min(end, next.start - gap);
+        c.end = Math.max(c.start + 0.1, end);
+        if (Math.abs(c.end - before) > 0.001) changed++;
+      });
+    });
+    onCuesReplaced();
+    toast(`${changed} subtítulo${changed === 1 ? '' : 's'} ajustado${changed === 1 ? '' : 's'}`, 'ok');
+  }
+
+  /** Convierte los bloques de cada capa en subtítulos independientes. */
+  function bakeChunks() {
+    if (!chunks.length) return;
+    snapshot();
+    const out = [];
+    layerData.forEach((L, li) => L.chunks.forEach(ch => {
+      const src = S.cues.find(c => c.id === ch.cueId);
+      out.push({
+        id: newId('c'), start: ch.start, end: ch.end, layer: li, speaker: src ? src.speaker : '',
+        words: ch.words.map(x => Object.assign({}, x.ref, { t0: x.ws, t1: x.we, ovr: Object.assign({}, x.ref.ovr) }))
+      });
+    }));
+    out.forEach(c => c.words.forEach(w => { delete w.ovr.cut; }));
+    const before = S.cues.length;
+    S.cues = out;
+    onCuesReplaced();
+    toast(`${before} subtítulos → ${out.length} (Ctrl+Z para deshacer)`, 'ok', 3500);
   }
 
   /** Palabra de mayor impacto: la más larga que no sea una palabra vacía (o con números). */
@@ -858,6 +965,13 @@
     const o = n ? words[0].ovr : {};
     $('#ovKey').checked = n > 0 && words.every(w => w.ovr.key);
     $('#ovEm').checked = n > 0 && words.every(w => w.ovr.em);
+    $('#ovBr').checked = n > 0 && words.every(w => w.ovr.br);
+    $('#ovCut').checked = n > 0 && words.every(w => w.ovr.cut);
+    paintSwatches('#swBox', o.boxColor || null, '#FAFF96');
+    const bp = $('#ovBoxPad');
+    bp.value = Math.round((o.boxPad != null ? o.boxPad : 0.16) * 100);
+    updateRangeFill(bp);
+    $('#ovBoxPadOut').textContent = o.boxPad != null ? bp.value + '%' : 'Auto';
     paintSwatches('#swText', o.color || null);
     const fx0 = FX.get(o.fx);
     paintSwatches('#swFx', o.fxColor || null, fx0 ? fx0.color : null);
@@ -871,6 +985,7 @@
     if (!words.length) { toast('Primero selecciona palabras en la lista', 'warn'); return false; }
     if (!(opts && opts.noSnapshot)) snapshot();
     words.forEach(w => { fn(w.ovr, w); paintChip(w); });
+    rebuild();
     renderTimelineCues();
     refreshSelectionUI();
     saveSession();
@@ -991,6 +1106,24 @@
       const on = e.target.checked;
       mutateSelection(o => { if (on) o.key = true; else delete o.key; });
     });
+    buildSwatches('#swBox', (c, live) => mutateSelection(o => { if (c) o.boxColor = c; else delete o.boxColor; }, { noSnapshot: live }), 'Sin caja');
+    {
+      const bp = $('#ovBoxPad');
+      let snapped = false;
+      bp.addEventListener('input', () => {
+        updateRangeFill(bp);
+        $('#ovBoxPadOut').textContent = bp.value + '%';
+        mutateSelection(o => { o.boxPad = bp.value / 100; }, { noSnapshot: snapped });
+        snapped = true;
+      });
+      bp.addEventListener('change', () => { snapped = false; });
+    }
+    const flag = (id, key) => $(id).addEventListener('change', e => {
+      const on = e.target.checked;
+      if (mutateSelection(o => { if (on) o[key] = true; else delete o[key]; })) { rebuild(); markDirty(); }
+    });
+    flag('#ovBr', 'br');
+    flag('#ovCut', 'cut');
     $('#ovEm').addEventListener('change', e => {
       const on = e.target.checked;
       if (mutateSelection(o => { if (on) o.em = true; else delete o.em; }) && (renderCueList(), refreshSelectionUI(), on) && style().emMode === 'none') {
@@ -1126,13 +1259,24 @@
       title: 'Diseño y márgenes de seguridad', sum: s => s.safeTop || s.safeBottom ? `Safe ${s.safeTop}/${s.safeBottom}px` : `Y ${s.posY}%`, fields: [
         { k: 'reveal', label: 'Aparición de palabras', type: 'select', options: [['all', 'Todas a la vez'], ['progressive', 'Progresiva (según se dicen)'], ['single', 'Una a una']] },
         { k: 'preAlpha', label: 'Opacidad de palabras aún no dichas', type: 'range', min: 0, max: 1, step: 0.05, show: s => s.reveal === 'all' },
-        { k: 'maxWords', label: 'Palabras por bloque (0 = línea completa)', type: 'range', min: 0, max: 12, step: 1, rebuild: true },
         { k: 'maxWidth', label: 'Ancho máximo', type: 'range', min: 20, max: 100, step: 1, unit: '%' },
         { k: 'posY', label: 'Posición vertical', type: 'range', min: 5, max: 95, step: 1, unit: '%', half: true },
         { k: 'posX', label: 'Posición horizontal', type: 'range', min: 5, max: 95, step: 1, unit: '%', half: true },
         { k: 'safeTop', label: 'Margen superior', type: 'range', min: 0, max: 600, step: 5, unit: 'px', half: true },
         { k: 'safeBottom', label: 'Margen inferior', type: 'range', min: 0, max: 600, step: 5, unit: 'px', half: true },
         { k: 'safeSide', label: 'Margen lateral', type: 'range', min: 0, max: 200, step: 5, unit: 'px' }
+      ]
+    },
+    {
+      title: 'Segmentación y duración', open: true, sum: s => [s.maxWords ? s.maxWords + ' pal./bloque' : '', s.maxLines ? s.maxLines + ' líneas' : '', s.maxCharsLine ? s.maxCharsLine + ' car./línea' : ''].filter(Boolean).join(' · ') || 'Línea completa', fields: [
+        { k: 'maxWords', label: 'Palabras por bloque (0 = sin límite)', type: 'range', min: 0, max: 16, step: 1 },
+        { k: 'maxLines', label: 'Líneas por bloque (0 = sin límite)', type: 'range', min: 0, max: 4, step: 1 },
+        { k: 'maxWordsLine', label: 'Palabras por línea', type: 'range', min: 0, max: 10, step: 1, half: true },
+        { k: 'maxCharsLine', label: 'Caracteres por línea', type: 'range', min: 0, max: 60, step: 1, half: true },
+        { k: 'maxChars', label: 'Caracteres por bloque (0 = sin límite)', type: 'range', min: 0, max: 120, step: 1 },
+        { k: 'minChunk', label: 'Duración mínima del bloque', type: 'range', min: 0, max: 2, step: 0.05, unit: 's', half: true },
+        { k: 'holdGap', label: 'Rellenar huecos de hasta', type: 'range', min: 0, max: 1.5, step: 0.05, unit: 's', half: true },
+        { k: 'punct', label: 'Puntuación', type: 'select', options: [['keep', 'Mantener'], ['soft', 'Quitar comas y puntos'], ['all', 'Quitar toda']] }
       ]
     },
     {
@@ -1148,6 +1292,8 @@
     if (f.unit === 'pct') return Math.round(v * 100) + '%';
     if (f.unit === '%') return Math.round(v) + '%';
     if (f.unit === '°') return Math.round(v) + '°';
+    if (f.unit === 's') return Number(v).toFixed(2) + ' s';
+    if (f.min === 0 && v === 0 && /(bloque|línea|sin límite)/.test(f.label)) return 'Libre';
     if (f.unit === 'px') return (Math.round(v * 10) / 10) + 'px';
     if (f.step < 1) return Number(v).toFixed(f.step < 0.01 ? 3 : 2);
     return String(v);

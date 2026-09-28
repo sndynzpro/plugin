@@ -32,7 +32,7 @@
         <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
         <span class="lbl-long">Importar SRT</span><span class="lbl-short">SRT</span>
       </button>
-      <input type="file" id="fileSrt" accept=".srt,.vtt,.ass,.ssa,.txt" hidden>
+      <input type="file" id="fileSrt" accept=".srt,.vtt,.ass,.ssa,.json,.txt" hidden>
       <div class="menu-wrap">
         <button class="btn" id="btnSubExport" aria-haspopup="true">
           <svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
@@ -64,6 +64,8 @@
     <div class="row-tools">
       <button class="btn small" id="btnAddCue">+ Agregar línea</button>
       <button class="btn small" id="btnAddParallel" title="Crea una línea en otra capa con el mismo tiempo que el subtítulo seleccionado">+ Añadir paralela</button>
+      <button class="btn small" id="btnSplit" title="Divide el subtítulo antes de la palabra seleccionada">Dividir</button>
+      <button class="btn small" id="btnMerge" title="Une el subtítulo seleccionado con el siguiente">Unir</button>
       <button class="btn small" id="btnAutoKey" title="Marca la palabra de mayor impacto de cada subtítulo">Palabra clave auto</button>
       <button class="link-btn" id="btnClearFx" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar efectos</button>
     </div>
@@ -191,6 +193,24 @@
           <div class="swatches" id="swText"></div>
         </div>
         <div class="field">
+          <label>Color de la caja</label>
+          <div class="swatches" id="swBox"></div>
+        </div>
+        <div class="field range">
+          <label>Ancho de la caja <output id="ovBoxPadOut">Auto</output></label>
+          <input type="range" id="ovBoxPad" min="0" max="60" step="1" value="16">
+        </div>
+        <div class="two">
+          <div class="field inline">
+            <label>Salto de línea antes</label>
+            <label class="toggle"><input type="checkbox" id="ovBr"><span></span></label>
+          </div>
+          <div class="field inline">
+            <label>Nuevo bloque aquí</label>
+            <label class="toggle"><input type="checkbox" id="ovCut"><span></span></label>
+          </div>
+        </div>
+        <div class="field">
           <label>Color del efecto</label>
           <div class="swatches" id="swFx"></div>
         </div>
@@ -216,6 +236,29 @@
 
     <!-- Herramientas: Auto-Zoom y silencios -->
     <div class="tab-panel" id="tab-tools">
+      <details class="sec tool">
+        <summary>Tiempos y segmentación <span class="sum-val">duración · cortes</span></summary>
+        <div class="sec-body">
+          <div class="two">
+            <div class="field"><label>Desplazar todo (ms)</label><input type="number" id="tShift" value="0" step="10"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn small" id="btnShift">Desplazar</button></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Duración mínima (s)</label><input type="number" id="tMin" value="0.8" step="0.1" min="0"></div>
+            <div class="field"><label>Duración máxima (s)</label><input type="number" id="tMax" value="6" step="0.5" min="0"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Separación mínima (s)</label><input type="number" id="tGap" value="0.04" step="0.01" min="0"></div>
+            <div class="field"><label>Lectura máx. (car./s)</label><input type="number" id="tCps" value="0" step="1" min="0" title="0 = sin límite. Alarga los subtítulos que se leen demasiado rápido"></div>
+          </div>
+          <div class="row-btns">
+            <button class="btn small" id="btnRetime">Ajustar duraciones</button>
+            <button class="btn small" id="btnBake" title="Convierte los bloques del estilo en subtítulos reales, para exportar un .srt ya cortado">Bloques → subtítulos</button>
+          </div>
+          <p class="note">La segmentación en pantalla (palabras o caracteres por línea, líneas por bloque) se ajusta en Estilos → Segmentación y duración.</p>
+        </div>
+      </details>
+
       <details class="sec tool" open>
         <summary>Eliminación de silencios <span class="sum-val" id="silSummary">-38 dB · 60 ms</span></summary>
         <div class="sec-body">

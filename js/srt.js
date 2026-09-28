@@ -79,8 +79,49 @@
     return cues;
   }
 
+  /**
+   * JSON con tiempos por palabra:
+   *  · Whisper / faster-whisper: { segments: [{ start, end, text, words: [{ word, start, end }] }] }
+   *  · Lista de palabras: [{ word|text, start, end }] (se agrupan por pausas)
+   * Devuelve cues con `words: [{ text, t0, t1 }]`.
+   */
+  function parseJSON(src) {
+    let data;
+    try { data = JSON.parse(src); } catch (e) { return []; }
+    const W = w => ({ text: String(w.word != null ? w.word : w.text || '').trim(), t0: +w.start, t1: +w.end });
+    const ok = w => w.text && isFinite(w.t0) && isFinite(w.t1);
+    const segs = Array.isArray(data) ? null : (data.segments || data.results || null);
+    if (segs) {
+      return segs.map(sg => {
+        const words = (sg.words || []).map(W).filter(ok);
+        const text = cleanText(sg.text || words.map(w => w.text).join(' '));
+        const cue = { start: +sg.start, end: Math.max(+sg.end, +sg.start + 0.1), text, speaker: sg.speaker || '' };
+        if (words.length) cue.words = words;
+        return cue;
+      }).filter(c => c.text && isFinite(c.start));
+    }
+    const list = (Array.isArray(data) ? data : data.words || []).map(W).filter(ok);
+    const cues = [];
+    let cur = null;
+    list.forEach((w, i) => {
+      const prev = list[i - 1];
+      if (!cur || w.t0 - prev.t1 > 0.6 || cur.words.length >= 8 || /[.?!]$/.test(prev.text)) {
+        cur = { start: w.t0, end: w.t1, words: [], speaker: '' };
+        cues.push(cur);
+      }
+      cur.words.push(w);
+      cur.end = w.t1;
+    });
+    cues.forEach(c => { c.text = c.words.map(w => w.text).join(' '); c.end = Math.max(c.end, c.start + 0.1); });
+    return cues;
+  }
+
   function parse(text) {
     const src = String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+    if (/^\s*[[{]/.test(src)) {
+      const j = parseJSON(src); // un .ass también empieza por «[»: si no es JSON, sigue
+      if (j.length) return j.sort((x, y) => x.start - y.start);
+    }
     const cues = /^\s*\[script info\]/i.test(src) || /^\s*dialogue:/im.test(src) ? parseASS(src) : parseSRT(src);
     cues.sort((x, y) => x.start - y.start);
     return cues;

@@ -34,6 +34,12 @@
     bgGlass: false, glassBorder: 0.35, glassShine: 0.18,
     // Diseño y zonas seguras
     reveal: 'all', preAlpha: 1, maxWords: 4, maxWidth: 82, posX: 50, posY: 72,
+    // Segmentación: 0 = sin límite
+    maxLines: 0, maxWordsLine: 0, maxCharsLine: 0, maxChars: 0,
+    // Duración: mínima por bloque y huecos que se rellenan para evitar parpadeos
+    minChunk: 0, holdGap: 0.25,
+    // Puntuación: keep | soft (quita , . ; :) | all
+    punct: 'keep',
     safeTop: 0, safeBottom: 0, safeSide: 0,
     // Animación
     cueIn: 'pop', cueOut: false, wordFx: ''
@@ -64,7 +70,7 @@
       hlMode: 'none', maxWords: 0, maxWidth: 84, shadowOpacity: 0.5
     }),
     {
-      id: 'enfasis', name: 'Énfasis intercalado', font: 'Montserrat', weight: 800, size: 72, case: 'upper',
+      id: 'enfasis', punct: 'soft', name: 'Énfasis intercalado', font: 'Montserrat', weight: 800, size: 72, case: 'upper',
       strokeWidth: 0, shadowOpacity: 0.6, shadowBlur: 10, shadowY: 4,
       hlMode: 'none', emMode: 'alternate', emOnKey: true, emColorA: '#FAFF96', emColorB: '#000000', emRadius: 8,
       maxWords: 4, cueIn: 'pop', posY: 70
@@ -76,12 +82,12 @@
       maxWords: 5, maxWidth: 80, posY: 72, safeTop: 250, safeBottom: 380, safeSide: 60, cueIn: 'none', lineHeight: 1.3
     },
     {
-      id: 'hormozi', name: 'Hormozi', font: 'Montserrat', weight: 900, size: 84,
+      id: 'hormozi', punct: 'soft', name: 'Hormozi', font: 'Montserrat', weight: 900, size: 84,
       strokeWidth: 9, shadowOpacity: 0.5, shadowBlur: 0, shadowY: 7,
       hlMode: 'current', hlColor: '#FFE600', hlScale: 1.1, maxWords: 3, cueIn: 'pop', posY: 70
     },
     {
-      id: 'beast', name: 'Beast', font: 'Luckiest Guy', weight: 400, size: 104,
+      id: 'beast', punct: 'soft', name: 'Beast', font: 'Luckiest Guy', weight: 400, size: 104,
       strokeWidth: 12, shadowOpacity: 1, shadowBlur: 0, shadowY: 10,
       reveal: 'single', hlMode: 'none', wordFx: 'pop', maxWords: 3, posY: 62, cueIn: 'none'
     },
@@ -91,12 +97,12 @@
       hlMode: 'current', hlColor: '#FFFFFF', hlBox: true, hlBoxColor: '#7C3AED', hlScale: 1.06, maxWords: 3
     },
     {
-      id: 'hormozi2', name: 'Hormozi verde', font: 'Montserrat', weight: 900, size: 84,
+      id: 'hormozi2', punct: 'soft', name: 'Hormozi verde', font: 'Montserrat', weight: 900, size: 84,
       strokeWidth: 9, shadowOpacity: 0.5, shadowBlur: 0, shadowY: 7,
       hlMode: 'current', hlColor: '#4ADE80', hlScale: 1.12, maxWords: 3, cueIn: 'pop', posY: 70
     },
     {
-      id: 'iman', name: 'Iman', font: 'Montserrat', weight: 800, size: 66,
+      id: 'iman', punct: 'soft', name: 'Iman', font: 'Montserrat', weight: 800, size: 66,
       strokeWidth: 0, shadowOpacity: 0.55, shadowBlur: 14, shadowY: 4,
       hlMode: 'current', hlColor: '#FDE047', hlScale: 1, maxWords: 3, cueIn: 'fade', posY: 74
     },
@@ -106,7 +112,7 @@
       hlMode: 'current', hlColor: '#FFFFFF', hlBox: true, hlBoxColor: '#6366F1', hlScale: 1.04, maxWords: 4, cueIn: 'pop'
     },
     {
-      id: 'devin', name: 'Devin', font: 'Montserrat', weight: 900, italic: true, size: 86,
+      id: 'devin', punct: 'soft', name: 'Devin', font: 'Montserrat', weight: 900, italic: true, size: 86,
       strokeWidth: 7, shadowOpacity: 0.6, shadowBlur: 0, shadowY: 6,
       reveal: 'progressive', hlMode: 'current', hlColor: '#39FF88', hlScale: 1.08, wordFx: 'pop', maxWords: 3, cueIn: 'none'
     },
@@ -117,13 +123,13 @@
       hlMode: 'none', maxWords: 0, maxWidth: 76, cueIn: 'none'
     },
     {
-      id: 'pop3d', name: 'Pop 3D', font: 'Luckiest Guy', weight: 400, size: 100,
+      id: 'pop3d', punct: 'soft', name: 'Pop 3D', font: 'Luckiest Guy', weight: 400, size: 100,
       strokeColor: '#000000', strokeWidth: 6, stroke2Color: '#FF3D7F', stroke2Width: 6, stroke3Color: '#000000', stroke3Width: 5,
       shadowOpacity: 1, shadowBlur: 0, shadowAngle: 90, shadowDist: 12,
       hlMode: 'current', hlColor: '#FFE600', hlScale: 1.12, maxWords: 3, cueIn: 'bounce'
     },
     {
-      id: 'gaming', name: 'Gaming', font: 'Bangers', weight: 400, size: 108, letterSpacing: 0.04,
+      id: 'gaming', punct: 'soft', name: 'Gaming', font: 'Bangers', weight: 400, size: 108, letterSpacing: 0.04,
       gradient: true, color: '#E6FF3D', color2: '#22C55E', strokeColor: '#000000', strokeWidth: 9,
       stroke2Color: '#FFFFFF', stroke2Width: 4, shadowOpacity: 0.9, shadowBlur: 0, shadowY: 8,
       hlMode: 'none', reveal: 'single', wordFx: 'punch', maxWords: 2, cueIn: 'none'

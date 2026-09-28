@@ -18,6 +18,13 @@ La implementación sigue `SubtitleEngine_Pro_Plan_Arquitectura.pdf`.
 | **07 · Silence Remover** | Umbral -50 a -25 dB, pausa mínima 0.25-0.8 s, padding in/out. Acciones: ripple delete, acortar pausas a 0.15 s o solo marcadores. Opcionalmente reajusta los subtítulos ya cargados. |
 | **08 · PNG Renderer** | Bloques sin animación → **un único PNG**; bloques animados → secuencia PNG. Nombres `[índice]_[timecode]_[hash].png`; si el hash ya existe en la carpeta no se vuelve a renderizar. Todo se importa en una bandeja del proyecto y se coloca en una pista «SubtitleEngine». |
 
+### Control por palabra, segmentación y tiempos
+
+- **Por palabra** (pestaña Efectos): palabra clave, **énfasis** (caja intercalada negro/amarillo), color del texto, **color y ancho de la caja**, tamaño, **salto de línea antes** y **nuevo bloque desde aquí**.
+- **Segmentación** (Estilos): palabras por bloque, líneas por bloque, palabras o caracteres por línea, caracteres por bloque, duración mínima, relleno de huecos y limpieza de puntuación.
+- **Tiempos** (Herramientas): desplazar todo, duración mínima/máxima, separación, velocidad de lectura y **Bloques → subtítulos** para exportar un `.srt` ya cortado. **Dividir** y **Unir** en la lista.
+- **JSON de Whisper** con tiempos por palabra: karaoke exacto en lugar de repartir el tiempo.
+
 ### Presets incluidos
 
 - **30X Media** (Playbook): *30X Default* (Inter Bold, `#F6F5F0`, minúsculas, centrado, sombra negra 65 %, palabra clave `#FAFF96`, márgenes 250 / 380 px en 1080×1920), *30X Hook* (MAYÚSCULAS, alineado a la izquierda), *30X Speaker 2* (amarillo, para clips bicolor) y *30X Portada*.

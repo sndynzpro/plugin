@@ -42,6 +42,13 @@
     return text;
   }
 
+  /** keep: tal cual · soft: quita , . ; : … (deja ¿? ¡!) · all: quita toda la puntuación. */
+  function cleanPunct(text, mode) {
+    if (!mode || mode === 'keep') return text;
+    if (mode === 'soft') return text.replace(/[.,;:…]+/g, '') || text;
+    return text.replace(/[^\p{L}\p{N}'’%$€#@+\-]/gu, '') || text;
+  }
+
   const fontStr = (st, px) =>
     `${st.italic ? 'italic ' : ''}${st.weight} ${px.toFixed(2)}px "${st.font}", "Arial Black", Arial, sans-serif`;
 
@@ -110,8 +117,25 @@
 
   // ───────────── Tiempos ─────────────
   /** Reparte la duración del subtítulo entre sus palabras según su longitud. */
+  /**
+   * Tiempo de cada palabra. Si el subtítulo trae tiempos reales (Whisper JSON:
+   * w.t0), se usan; si no, se reparte la duración según la longitud de cada palabra.
+   */
   function timeCue(cue) {
     const words = cue.words;
+    if (words.some(w => typeof w.t0 === 'number')) {
+      // Tiempos reales; las palabras sin tiempo (editadas después) se interpolan entre sus vecinas
+      const st = words.map(w => (typeof w.t0 === 'number' ? Math.min(cue.end, Math.max(cue.start, w.t0)) : null));
+      for (let i = 0; i < st.length; i++) {
+        if (st[i] != null) continue;
+        let j = i;
+        while (j < st.length && st[j] == null) j++;
+        const a = i === 0 ? cue.start : st[i - 1], b = j < st.length ? st[j] : cue.end;
+        for (let k = i; k < j; k++) st[k] = a + (b - a) * (k - i + (i === 0 ? 0 : 1)) / (j - i + (i === 0 ? 0 : 1));
+        i = j;
+      }
+      return st.map((ws, i) => ({ ws, we: i === st.length - 1 ? cue.end : Math.max(ws + 0.01, st[i + 1]) }));
+    }
     const weights = words.map(w => Math.max(2, w.text.replace(/[^\p{L}\p{N}]/gu, '').length) + 1.5);
     const total = weights.reduce((a, b) => a + b, 0) || 1;
     const dur = cue.end - cue.start;
@@ -123,7 +147,51 @@
     });
   }
 
-  /** Divide cada subtítulo en bloques de como máximo `style.maxWords` palabras (equilibrados). */
+  const charLen = w => Array.from(String(w.text || '')).length;
+
+  /**
+   * Agrupa las palabras de un subtítulo en bloques respetando:
+   * palabras por bloque, caracteres por bloque, líneas por bloque,
+   * palabras/caracteres por línea, saltos de línea forzados (ovr.br)
+   * y cortes de bloque forzados (ovr.cut). Devuelve [[inicio, fin)].
+   */
+  function groupWords(words, style) {
+    const n = words.length;
+    const mw = style.maxWords | 0, mc = style.maxChars | 0, ml = style.maxLines | 0;
+    const wl = style.maxWordsLine | 0, cl = style.maxCharsLine | 0;
+    const forced = words.some(w => w.ovr && (w.ovr.cut || w.ovr.br));
+    if (!mc && !ml && !forced) {
+      // Solo palabras por bloque: bloques equilibrados (4+3 mejor que 6+1)
+      const groups = mw > 0 ? Math.ceil(n / mw) : 1;
+      const base = Math.floor(n / groups), extra = n % groups;
+      const out = [];
+      for (let g = 0, i = 0; g < groups; g++) {
+        const size = base + (g < extra ? 1 : 0);
+        out.push([i, i + size]);
+        i += size;
+      }
+      return out;
+    }
+    const out = [];
+    let cur = null;
+    words.forEach((w, i) => {
+      const ov = w.ovr || {}, len = charLen(w);
+      const newLine = cur && (ov.br || (wl && cur.lw >= wl) || (cl && cur.lc + 1 + len > cl));
+      const close = !cur || ov.cut || (mw && cur.n >= mw) || (mc && cur.chars + 1 + len > mc) ||
+        (ml && cur.lines + (newLine ? 1 : 0) > ml);
+      if (close) {
+        if (cur) cur.end = i;
+        cur = { start: i, end: n, n: 0, chars: -1, lines: 1, lw: 0, lc: -1 };
+        out.push(cur);
+      } else if (newLine) {
+        cur.lines++; cur.lw = 0; cur.lc = -1;
+      }
+      cur.n++; cur.chars += 1 + len; cur.lw++; cur.lc += 1 + len;
+    });
+    return out.map(g => [g.start, g.end]);
+  }
+
+  /** Divide los subtítulos en bloques y aplica las reglas de duración del estilo. */
   function buildChunks(cues, style, offset) {
     offset = offset || 0;
     const out = [];
@@ -131,28 +199,34 @@
       const n = cue.words.length;
       if (!n) return;
       const times = timeCue(cue);
-      let size = n;
-      if (style.maxWords > 0 && n > style.maxWords) {
-        const groups = Math.ceil(n / style.maxWords);
-        size = Math.ceil(n / groups);
-      }
-      for (let i = 0; i < n; i += size) {
-        const last = i + size >= n;
-        const words = cue.words.slice(i, i + size).map((w, k) => ({
-          ref: w, ws: times[i + k].ws + offset, we: times[i + k].we + offset
+      groupWords(cue.words, style).forEach(([a, z], gi, groups) => {
+        const last = gi === groups.length - 1;
+        const words = cue.words.slice(a, z).map((w, k) => ({
+          ref: w, ws: times[a + k].ws + offset, we: times[a + k].we + offset
         }));
-        words[words.length - 1].we = last ? cue.end + offset : times[i + size].ws + offset;
+        const end = last ? cue.end + offset : times[z].ws + offset;
+        words[words.length - 1].we = end;
         out.push({
-          id: cue.id + ':' + i,
+          id: cue.id + ':' + a,
           cueId: cue.id,
           layer: cue.layer || 0,
-          start: (i === 0 ? cue.start : times[i].ws) + offset,
-          end: last ? cue.end + offset : times[i + size].ws + offset,
+          start: (gi === 0 ? cue.start : times[a].ws) + offset,
+          end,
           words
         });
-      }
+      });
     });
     out.sort((a, b) => a.start - b.start);
+    // Duración mínima y relleno de huecos cortos (evita parpadeos entre bloques)
+    const minD = +style.minChunk || 0, hold = +style.holdGap || 0;
+    if (minD || hold) {
+      out.forEach((c, i) => {
+        const next = out[i + 1];
+        if (minD && c.end - c.start < minD) c.end = next ? Math.max(c.end, Math.min(c.start + minD, next.start)) : c.start + minD;
+        if (hold && next && next.start > c.end && next.start - c.end <= hold) c.end = next.start;
+        c.words[c.words.length - 1].we = Math.max(c.words[c.words.length - 1].we, c.end);
+      });
+    }
     return out;
   }
 
@@ -188,7 +262,7 @@
       const ov = w.ref.ovr || {};
       const fs = baseFs * (ov.scale || 1);
       ctx.font = fontStr(style, fs);
-      const text = applyCase(w.ref.text, style.case);
+      const text = applyCase(cleanPunct(w.ref.text, style.punct), style.case);
       return { w, ov, fs, text, width: measure(ctx, text, fs, style.letterSpacing) };
     });
 
@@ -196,11 +270,17 @@
     const maxW = Math.min(W * style.maxWidth / 100, W - side * 2);
     const lines = [];
     let line = null;
+    const wl = style.maxWordsLine | 0, cl = style.maxCharsLine | 0;
     items.forEach(it => {
-      if (!line || (line.items.length && line.width + gap + it.width > maxW)) {
-        line = { items: [], width: 0, fs: 0 };
+      const len = Array.from(it.text).length;
+      const brk = line && line.items.length && (
+        it.ov.br || (wl && line.items.length >= wl) || (cl && line.chars + 1 + len > cl) ||
+        line.width + gap + it.width > maxW);
+      if (!line || brk) {
+        line = { items: [], width: 0, fs: 0, chars: -1 };
         lines.push(line);
       }
+      line.chars += 1 + len;
       line.width += (line.items.length ? gap : 0) + it.width;
       line.fs = Math.max(line.fs, it.fs);
       line.items.push(it);
@@ -535,8 +615,6 @@
           box = { fill: style.hlBoxColor, padX: it.fs * 0.14, padY: it.fs * 0.1, r: it.fs * 0.2 };
         }
       }
-      if (ov.color) { fill = ov.color; fill2 = null; }
-
       // Énfasis: caja negra con letra amarilla / caja amarilla con letra negra, intercaladas
       let wordStyle = style;
       const em = style.emMode !== 'none' && (ov.em || (style.emOnKey && ov.key));
@@ -551,13 +629,19 @@
         };
         hs *= style.emScale || 1;
         if (style.emPop && phase === 1 && t - w.ws < EM_POP) hs *= 1 + 0.18 * FX.ease.bump((t - w.ws) / EM_POP);
-        if (style.emPlain !== false) {
-          wordStyle = Object.assign({}, style, {
-            strokeWidth: 0, stroke2Width: 0, stroke3Width: 0, glow: 0,
-            shadowOpacity: 0, shadow2Opacity: 0, shadow3Opacity: 0
-          });
-        }
       }
+      // Caja propia de la palabra (color y ancho elegidos a mano)
+      if (ov.boxColor) {
+        box = { fill: ov.boxColor, padX: 0, padY: it.fs * 0.08, r: (style.emRadius == null ? 10 : style.emRadius) * L.u };
+      }
+      if (box && (em || ov.boxColor)) box.padX = it.fs * (ov.boxPad != null ? ov.boxPad : (style.emPad == null ? 0.16 : style.emPad));
+      if ((em || ov.boxColor) && style.emPlain !== false) {
+        wordStyle = Object.assign({}, style, {
+          strokeWidth: 0, stroke2Width: 0, stroke3Width: 0, glow: 0,
+          shadowOpacity: 0, shadow2Opacity: 0, shadow3Opacity: 0
+        });
+      }
+      if (ov.color) { fill = ov.color; fill2 = null; }
 
       let reveal = 1;
       if (charsLeft !== Infinity) {
@@ -622,7 +706,7 @@
   }
 
   root.SubFX_Renderer = {
-    REF, buildChunks, findChunk, renderChunk, renderFrame, renderLayers, frameKey,
+    REF, buildChunks, groupWords, cleanPunct, findChunk, renderChunk, renderFrame, renderLayers, frameKey,
     drawWord, fontStr, measure, applyCase, rgba
   };
 })(window);

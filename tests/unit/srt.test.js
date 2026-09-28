@@ -65,3 +65,15 @@ test('timecodes de secuencia (NDF) ida y vuelta', () => {
   assert.equal(SRT.fromTC('00:00:01,500'), 1.5);
   assert.ok(Number.isNaN(SRT.fromTC('abc', 30)));
 });
+
+test('lee JSON de Whisper con tiempos por palabra', () => {
+  const c = SRT.parse(JSON.stringify({ segments: [{ start: 0.5, end: 2, text: ' Hola equipo', words: [{ word: ' Hola', start: 0.5, end: 0.9 }, { word: ' equipo', start: 1.0, end: 1.8 }] }] }));
+  assert.equal(c.length, 1);
+  assert.equal(c[0].text, 'Hola equipo');
+  assert.deepEqual(c[0].words, [{ text: 'Hola', t0: 0.5, t1: 0.9 }, { text: 'equipo', t0: 1, t1: 1.8 }]);
+});
+
+test('agrupa una lista de palabras por pausas y fin de frase', () => {
+  const c = SRT.parse(JSON.stringify([{ word: 'a', start: 0, end: 0.2 }, { word: 'b.', start: 0.3, end: 0.5 }, { word: 'c', start: 0.6, end: 0.8 }, { word: 'd', start: 2, end: 2.2 }]));
+  assert.deepEqual(c.map(x => x.text), ['a b.', 'c', 'd']);
+});

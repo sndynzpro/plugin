@@ -101,6 +101,28 @@ function wav(file, secs, spans) {
     return boxes.join(' → ');
   }));
 
+  // 2c. Segmentación: palabras/caracteres por línea, líneas por bloque, cortes forzados, tiempos reales
+  await check('segmentación y duración', () => page.evaluate(() => {
+    const R = window.SubFX_Renderer, ST = window.SubFX_Styles;
+    const W = t => t.split(' ').map((x, i) => ({ id: 'w' + i, text: x, ovr: {} }));
+    const cue = (txt, extra) => Object.assign({ id: 'c', start: 0, end: 4, words: W(txt) }, extra);
+    const sizes = (c, st) => R.buildChunks([c], ST.make(st)).map(ch => ch.words.length);
+    const eq = (a, b, m) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ': ' + JSON.stringify(a)); };
+    eq(sizes(cue('a b c d e f g'), { maxWords: 3 }), [3, 2, 2], 'palabras por bloque equilibradas');
+    eq(sizes(cue('a b c d e f g'), { maxWords: 0, maxLines: 2, maxWordsLine: 2 }), [4, 3], 'líneas × palabras por línea');
+    eq(sizes(cue('uno dos tres cuatro'), { maxWords: 0, maxChars: 8 }), [2, 1, 1], 'caracteres por bloque');
+    const c = cue('a b c d e'); c.words[3].ovr.cut = true;
+    eq(sizes(c, { maxWords: 0 }), [3, 2], 'nuevo bloque forzado');
+    const t = cue('a b c', { start: 0, end: 3 }); t.words[0].t0 = 0; t.words[1].t0 = 2; t.words[2].t0 = 2.5;
+    const ws = R.buildChunks([t], ST.make({ maxWords: 0 }))[0].words.map(w => w.ws);
+    eq(ws, [0, 2, 2.5], 'tiempos reales por palabra');
+    const g = [cue('a', { start: 0, end: 1 }), cue('b', { id: 'c2', start: 1.2, end: 2 })];
+    const ends = R.buildChunks(g, ST.make({ maxWords: 0, holdGap: 0.3 })).map(ch => ch.end);
+    eq(ends, [1.2, 2], 'rellena huecos cortos');
+    if (R.cleanPunct('hola, mundo.', 'soft') !== 'hola mundo' || R.cleanPunct('¿qué?', 'soft') !== '¿qué?') throw new Error('puntuación');
+    return 'ok';
+  }));
+
   // 3. Sombras múltiples, contornos y contorno interior
   await check('sombras y contornos', () => page.evaluate(() => {
     const R = window.SubFX_Renderer, ST = window.SubFX_Styles;
@@ -167,6 +189,19 @@ function wav(file, secs, spans) {
     await page.click('label.toggle:has(#ovEm)');
     const n = await page.$$eval('.chip.em', e => e.length);
     expect(n === 1, 'chips con énfasis: ' + n);
+    await page.keyboard.press('Escape');
+  });
+
+  // 6c. Dividir y unir subtítulos
+  await check('divide y une subtítulos', async () => {
+    const before = await page.$$eval('.cue', e => e.length);
+    await page.click('.cue:first-child .chip:nth-child(3)');
+    await page.click('#btnSplit');
+    const mid = await page.$$eval('.cue', e => e.length);
+    await page.click('.cue:first-child .chip:nth-child(1)');
+    await page.click('#btnMerge');
+    const after = await page.$$eval('.cue', e => e.length);
+    expect(mid === before + 1 && after === before, `${before} → ${mid} → ${after}`);
     await page.keyboard.press('Escape');
   });
 

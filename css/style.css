@@ -249,6 +249,10 @@ input.tc:focus { border-color: var(--ink); background: var(--field); }
 .chip.key { background: var(--accent); border-color: var(--ink); }
 .chip.em { background: #000; border-color: #000; color: var(--accent); }
 .chip.em.em-b { background: var(--accent); border-color: #000; color: #000; }
+.chip.boxed { box-shadow: inset 0 0 0 3px var(--bc); }
+.chip.br::before { content: "↵"; font-size: 11px; color: var(--muted); margin-right: 2px; }
+.chip.cut { margin-left: 8px; }
+.chip.cut::after { content: ""; position: absolute; left: -7px; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: var(--err); }
 .chip.has-fx { border-style: dashed; border-color: var(--ink); }
 .chip .fx-tag { font-style: normal; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .chip.sel { background: var(--ink); border-color: var(--ink); color: var(--bg); }
