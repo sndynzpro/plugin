@@ -54,6 +54,22 @@ const code = jsx
   .forEach(([re, what]) => { if (re.test(code)) bad(`host.jsx usa ${what}, que ExtendScript (ES3) no soporta.`); });
 if (!errors.length) ok('host.jsx es compatible con ExtendScript');
 
+// Compatibilidad con el Chromium de CEP 11 (Premiere 2022-2023: Chromium 88)
+const CSS_BANNED = [[/color-mix\(/, 'color-mix() (Chrome 111)'], [/:has\(/, ':has() (Chrome 105)'], [/@container/, '@container (Chrome 105)'],
+  [/@layer/, '@layer (Chrome 99)'], [/text-wrap:/, 'text-wrap (Chrome 114)'], [/:is\(|:where\(/, ':is()/:where() (Chrome 88, dudoso en CEF)']];
+const JS_BANNED = [[/\.at\(-?\d/, 'Array/String.at() (Chrome 92)'], [/Object\.hasOwn\(/, 'Object.hasOwn (Chrome 93)'], [/structuredClone\(/, 'structuredClone (Chrome 98)'],
+  [/\.findLast(Index)?\(/, 'findLast (Chrome 97)'], [/\?\?=|\|\|=|&&=/, 'asignación lógica (Chrome 85, evitar)'], [/\.toSorted\(|\.toReversed\(|Object\.groupBy/, 'ES2023 (Chrome 110+)']];
+const strip = src => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+for (const f of fs.readdirSync(path.join(ROOT, 'css'))) {
+  const css = strip(fs.readFileSync(path.join(ROOT, 'css', f), 'utf8'));
+  CSS_BANNED.forEach(([re, what]) => { if (re.test(css)) bad(`css/${f} usa ${what}, que el Chromium de Premiere no soporta.`); });
+}
+scripts.forEach(src => {
+  const js = strip(fs.readFileSync(path.join(ROOT, src), 'utf8'));
+  JS_BANNED.forEach(([re, what]) => { if (re.test(js)) bad(`${src} usa ${what}, que el Chromium de Premiere no soporta.`); });
+});
+if (!errors.length) ok('CSS y JS compatibles con el Chromium de CEP 11 (88)');
+
 if (errors.length) {
   errors.forEach(e => process.stderr.write('✗ ' + e + '\n'));
   process.exit(1);

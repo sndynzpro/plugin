@@ -448,12 +448,9 @@
   function bindVideo() {
     videoFrameLoop();
     const menu = $('#videoMenu');
-    $('#btnVideo').addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
-    document.addEventListener('click', () => { menu.hidden = true; });
     menu.addEventListener('click', e => {
       const b = e.target.closest('button');
       if (!b) return;
-      menu.hidden = true;
       if (b.dataset.v === 'proxy') buildProxy();
       else if (b.dataset.v === 'file') $('#videoFile').click();
       else if (b.dataset.v === 'mute') { VID.muted = !VID.muted; VID.el.muted = VID.muted; toast(VID.muted ? 'Audio del vídeo silenciado' : 'Audio del vídeo activado'); }
@@ -549,7 +546,13 @@
     HOST.t = null;
     document.body.classList.remove('host-playing');
     if (!on) return;
-    if (!CEP.available) { toast('Sync TC funciona dentro de Premiere Pro', 'warn'); $('#chkSync').checked = false; return; }
+    if (!CEP.available) {
+      toast('«Seguir a Premiere» funciona dentro de Premiere Pro', 'warn');
+      $('#chkSync').checked = false;
+      const t = $('#chkSync').closest('.tgl');
+      if (t && t._sync) t._sync();
+      return;
+    }
     HOST.on = true;
     HOST.timer = setInterval(pollHost, SYNC_MS);
     pollHost();
@@ -1571,6 +1574,7 @@
       root.appendChild(d);
     });
     smoothDetails(root);
+    if (DD) enhanceSelects(root);
     syncStyleEditor();
   }
 
@@ -1583,12 +1587,26 @@
     const set = (v, live) => setStyleValue(f, v, live);
 
     if (f.type === 'range') {
-      const out = el('output');
-      lab.appendChild(out);
+      // Valor editable a mano (se admite «12px», «45°», «80 %») y etiqueta arrastrable
+      const num = el('input', 'num');
+      num.type = 'text';
+      num.setAttribute('aria-label', f.label);
+      lab.appendChild(num);
       input = el('input');
       input.type = 'range';
       input.min = f.min; input.max = f.max; input.step = f.step;
-      input.addEventListener('input', () => { out.textContent = fmtVal(f, +input.value); updateRangeFill(input); set(+input.value, true); });
+      input.setAttribute('aria-label', f.label);
+      input.addEventListener('input', () => { num.value = fmtVal(f, +input.value); updateRangeFill(input); set(+input.value, true); });
+      num.addEventListener('keydown', e => { if (e.key === 'Enter') num.blur(); if (e.key === 'Escape') { num.value = fmtVal(f, +input.value); num.blur(); } e.stopPropagation(); });
+      num.addEventListener('change', () => {
+        let v = parseFloat(String(num.value).replace(',', '.'));
+        if (f.unit === 'pct' && isFinite(v)) v /= 100;
+        if (!isFinite(v)) { num.value = fmtVal(f, +input.value); return; }
+        v = Math.max(+f.min, Math.min(+f.max, v));
+        input.value = v;
+        input.dispatchEvent(new Event('input'));
+      });
+      scrubLabel(lab, input, num);
       wrap.appendChild(input);
     } else if (f.type === 'select') {
       input = el('select');
@@ -1657,10 +1675,11 @@
       if (!wrap) return;
       const v = st[f.k];
       if (f.type === 'range') {
-        const inp = wrap.querySelector('input');
+        const inp = wrap.querySelector('input[type=range]');
         inp.value = v;
         updateRangeFill(inp);
-        wrap.querySelector('output').textContent = fmtVal(f, v);
+        const num = wrap.querySelector('.num');
+        if (document.activeElement !== num) num.value = fmtVal(f, v);
       } else if (f.type === 'toggle') {
         wrap.querySelector('input').checked = !!v;
       } else if (f.type === 'color') {
@@ -1709,20 +1728,20 @@
   }
 
   function buildStyleCats() {
-    const box = $('#styleCats');
-    box.innerHTML = '';
-    [['', 'Todos']].concat(Object.entries(ST.CATS)).concat([['mine', 'Míos']]).forEach(([id, name]) => {
-      const b = el('button', S.styleCat === id ? 'active' : '', name);
-      b.dataset.cat = id;
-      box.appendChild(b);
-    });
-    box.addEventListener('click', e => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      S.styleCat = b.dataset.cat;
-      $$('#styleCats button').forEach(x => x.classList.toggle('active', x === b));
-      filterStyles();
-    });
+    const sel = $('#styleCats');
+    sel.innerHTML = '';
+    const count = cat => Object.values(styles).filter(st => (cat === 'mine' ? st.custom : (st.cat || 'viral') === cat)).length;
+    [['', `Todos los presets (${Object.keys(styles).length})`]].concat(Object.entries(ST.CATS).map(([id, name]) => [id, `${name} (${count(id)})`]))
+      .concat([['mine', `Míos (${count('mine')})`]]).forEach(([id, name]) => {
+        const o = el('option', null, name);
+        o.value = id;
+        sel.appendChild(o);
+      });
+    sel.value = S.styleCat || '';
+    if (!sel.dataset.bound) {
+      sel.dataset.bound = '1';
+      sel.addEventListener('change', () => { S.styleCat = sel.value; filterStyles(); });
+    }
   }
   function filterStyles() {
     $$('.style-card').forEach(c => {
@@ -1735,6 +1754,8 @@
   function buildStyleGallery() {
     const g = $('#styleGallery');
     g.innerHTML = '';
+    $('#presetSum').textContent = style().name;
+    if ($('#styleCats').options.length) buildStyleCats();
     Object.values(styles).forEach((st, gi) => {
       const card = el('button', 'style-card' + (st.id === style().id ? ' on' : ''));
       card.style.setProperty('--i', Math.min(gi, 16));
@@ -1756,6 +1777,7 @@
   function selectStyle(id) {
     if (!styles[id]) return;
     S.layers[S.editLayer].styleId = id;
+    $('#presetSum').textContent = styles[id].name;
     $$('.style-card').forEach(c => c.classList.toggle('on', c.dataset.id === id));
     loadFont(style());
     rebuild();
@@ -2005,14 +2027,10 @@
       if (f) loadSrtText(await f.text(), f.name);
     });
     const menu = $('#subExportMenu');
-    $('#btnSubExport').addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
     menu.addEventListener('click', e => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      menu.hidden = true;
-      exportSubs(b.dataset.fmt);
+      const b = e.target.closest('button[data-fmt]');
+      if (b) exportSubs(b.dataset.fmt);
     });
-    document.addEventListener('click', () => { menu.hidden = true; });
   }
 
   // ───────────── Proyecto nuevo ─────────────
@@ -2559,6 +2577,7 @@
     try {
       const info = await CEP.call('getSequenceInfo');
       S.seq = info && info.ok ? info : null;
+      $('#connPill span').textContent = S.seq ? `${S.seq.name} · ${S.seq.width}×${S.seq.height} · ${S.seq.fpsLabel || S.seq.fps} fps` : 'Premiere conectado · sin secuencia';
       if (S.seq) S.seq.anchor = S.settings.startMode === 'playhead' ? S.seq.playhead : 0;
       box.innerHTML = '';
       const top = el('div', 'seq-top');
@@ -2925,6 +2944,216 @@
     })(t0);
   }
 
+  // ───────────── Componentes de interfaz ─────────────
+  /** Arrastrar sobre la etiqueta cambia el valor (Shift ×10, Alt ×0.1), como en Adobe. */
+  function scrubLabel(lab, range, num) {
+    lab.addEventListener('pointerdown', e => {
+      if (e.target === num || e.button !== 0) return;
+      e.preventDefault();
+      const x0 = e.clientX, v0 = +range.value, step = +range.step || 1, span = (+range.max - +range.min);
+      let moved = false;
+      lab.setPointerCapture(e.pointerId);
+      const move = ev => {
+        const dx = ev.clientX - x0;
+        if (!moved && Math.abs(dx) < 3) return;
+        moved = true;
+        const k = ev.shiftKey ? 10 : ev.altKey ? 0.1 : 1;
+        const perPx = Math.max(step, span / 300) * k;
+        let v = v0 + dx * perPx;
+        v = Math.round(v / step) * step;
+        v = Math.max(+range.min, Math.min(+range.max, v));
+        if (+range.value !== v) { range.value = v; range.dispatchEvent(new Event('input')); }
+      };
+      const up = () => {
+        lab.removeEventListener('pointermove', move);
+        lab.removeEventListener('pointerup', up);
+        if (!moved) num.focus(), num.select();
+        else range.dispatchEvent(new Event('change'));
+      };
+      lab.addEventListener('pointermove', move);
+      lab.addEventListener('pointerup', up);
+    });
+  }
+
+  /* Desplegables propios: el <select> original guarda el valor y dispara «change». */
+  const DD = [];
+  let ddOpen = null;
+  function enhanceSelects(root) {
+    $$('select', root || document).forEach(sel => {
+      if (sel.closest('.dd') || sel.dataset.native) return;
+      const wrap = el('div', 'dd' + (sel.classList.contains('mini-select') ? ' mini' : ''));
+      sel.parentNode.insertBefore(wrap, sel);
+      wrap.appendChild(sel);
+      sel.tabIndex = -1;
+      const btn = el('button', 'dd-btn');
+      btn.type = 'button';
+      if (sel.title) btn.title = sel.title;
+      if (sel.id) btn.dataset.for = sel.id;
+      wrap.appendChild(btn);
+      const entry = { sel, btn, wrap, last: null };
+      entry.sync = () => {
+        const o = sel.options[sel.selectedIndex];
+        btn.textContent = o ? o.textContent : '';
+        entry.last = sel.value;
+      };
+      entry.sync();
+      DD.push(entry);
+      new MutationObserver(entry.sync).observe(sel, { childList: true, subtree: true, characterData: true });
+      sel.addEventListener('change', entry.sync);
+      btn.addEventListener('click', e => { e.stopPropagation(); openDD(entry); });
+      btn.addEventListener('keydown', e => {
+        if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); e.stopPropagation(); openDD(entry); }
+      });
+      if (sel.id) {
+        const lab = document.querySelector(`label[for="${sel.id}"]`);
+        if (lab) lab.addEventListener('click', e => { e.preventDefault(); btn.focus(); });
+      }
+    });
+  }
+  /** Los cambios hechos por código (sel.value = …) no disparan eventos: se comprueban cada poco. */
+  function refreshSelects() { DD.forEach(d => { if (d.sel.value !== d.last) d.sync(); }); }
+
+  function closeDD(focus) {
+    if (!ddOpen) return;
+    const d = ddOpen;
+    ddOpen = null;
+    d.menu.remove();
+    d.entry.wrap.classList.remove('open');
+    document.removeEventListener('keydown', d.onKey, true);
+    if (focus) d.entry.btn.focus();
+  }
+  function openDD(entry) {
+    if (ddOpen && ddOpen.entry === entry) { closeDD(true); return; }
+    closeDD();
+    closeMenus();
+    const { sel, btn } = entry;
+    const m = el('div', 'dd-menu');
+    m.setAttribute('role', 'listbox');
+    const items = Array.from(sel.options).map((o, i) => {
+      const b = el('button', o.selected ? 'on' : '', o.textContent);
+      b.type = 'button';
+      b.dataset.i = i;
+      b.disabled = o.disabled;
+      m.appendChild(b);
+      return b;
+    });
+    document.body.appendChild(m);
+    const r = btn.getBoundingClientRect();
+    m.style.minWidth = Math.max(r.width, 160) + 'px';
+    const h = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
+    m.style.top = (window.innerHeight - r.bottom < h + 8 && r.top > h + 8 ? r.top - h - 4 : r.bottom + 4) + 'px';
+    entry.wrap.classList.add('open');
+    let kb = sel.selectedIndex;
+    const mark = () => items.forEach((b, i) => { b.classList.toggle('kb', i === kb); if (i === kb) b.scrollIntoView({ block: 'nearest' }); });
+    const choose = i => {
+      if (i >= 0 && i < items.length && !items[i].disabled && sel.selectedIndex !== i) {
+        sel.selectedIndex = i;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      closeDD(true);
+    };
+    m.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (b) choose(+b.dataset.i); });
+    const onKey = e => {
+      if (e.key === 'ArrowDown') kb = Math.min(items.length - 1, kb + 1);
+      else if (e.key === 'ArrowUp') kb = Math.max(0, kb - 1);
+      else if (e.key === 'Home') kb = 0;
+      else if (e.key === 'End') kb = items.length - 1;
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); choose(kb); return; }
+      else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); closeDD(true); return; }
+      else if (e.key.length === 1) {
+        const q = e.key.toLowerCase();
+        const j = items.findIndex((b, i) => i > kb && b.textContent.trim().toLowerCase().startsWith(q));
+        const k = j >= 0 ? j : items.findIndex(b => b.textContent.trim().toLowerCase().startsWith(q));
+        if (k >= 0) kb = k;
+      } else return;
+      e.preventDefault();
+      e.stopPropagation();
+      mark();
+    };
+    document.addEventListener('keydown', onKey, true);
+    ddOpen = { entry, menu: m, onKey };
+    mark();
+  }
+
+  /* Menús de botón (Archivo, Apariencia, Seleccionar, Vídeo): uno abierto a la vez. */
+  function closeMenus(except) { $$('.menu').forEach(m => { if (m !== except) m.hidden = true; }); }
+  function bindMenus() {
+    $$('.menu-wrap').forEach(w => {
+      const btn = w.querySelector(':scope > button'), menu = w.querySelector(':scope > .menu');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        closeDD();
+        const open = menu.hidden;
+        closeMenus(menu);
+        menu.hidden = !open;
+      });
+      menu.addEventListener('click', e => {
+        e.stopPropagation();
+        if (e.target.closest('button') && !e.target.closest('.accent-row') && !e.target.closest('[data-density]')) menu.hidden = true;
+      });
+      menu.addEventListener('keydown', e => {
+        const items = $$(':scope > button', menu);
+        let i = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { items[(i + 1) % items.length].focus(); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { items[(i - 1 + items.length) % items.length].focus(); e.preventDefault(); }
+        else if (e.key === 'Escape') { menu.hidden = true; btn.focus(); e.preventDefault(); }
+        e.stopPropagation();
+      });
+    });
+    document.addEventListener('click', () => { closeMenus(); closeDD(); });
+    window.addEventListener('resize', () => closeDD());
+    document.addEventListener('scroll', e => { if (ddOpen && !ddOpen.menu.contains(e.target)) closeDD(); }, true);
+  }
+
+  /* Apariencia: tema, acento y densidad (se guardan en este equipo). */
+  const UI_KEY = 'subfx.ui';
+  function applyUI(ui) {
+    const r = document.documentElement;
+    r.dataset.theme = ui.theme || 'dark';
+    r.dataset.density = ui.density || 'comfortable';
+    // Tonos derivados del acento (sin color-mix, que el Chromium de CEP no soporta)
+    const acc = ui.accent || '#FAFF96';
+    const [ar, ag, ab] = [1, 3, 5].map(i => parseInt(acc.slice(i, i + 2), 16));
+    r.style.setProperty('--accent', acc);
+    r.style.setProperty('--accent-soft', `rgba(${ar},${ag},${ab},.16)`);
+    r.style.setProperty('--accent-wash', `rgba(${ar},${ag},${ab},.55)`);
+    if (r.dataset.theme === 'dark') r.style.setProperty('--focus-ring', `rgba(${ar},${ag},${ab},.22)`);
+    else r.style.removeProperty('--focus-ring');
+    $$('#themeMenu [data-theme]').forEach(b => b.classList.toggle('on', b.dataset.theme === r.dataset.theme));
+    $$('#themeMenu [data-density]').forEach(b => b.classList.toggle('on', b.dataset.density === r.dataset.density));
+    $$('#accentRow [data-accent]').forEach(b => b.classList.toggle('on', b.dataset.accent === (ui.accent || '#FAFF96')));
+    moveTabInk();
+    drawZoomGraph();
+  }
+  /** Estado visual de los interruptores con icono (en lugar de :has(), no disponible en CEP). */
+  function bindToggles() {
+    $$('.tgl').forEach(t => {
+      const inp = t.querySelector('input');
+      const sync = () => t.classList.toggle('on', inp.checked);
+      inp.addEventListener('change', sync);
+      inp.addEventListener('focus', () => t.classList.add('kb-focus'));
+      inp.addEventListener('blur', () => t.classList.remove('kb-focus'));
+      sync();
+      t._sync = sync;
+    });
+  }
+  function loadUI() { try { return JSON.parse(localStorage.getItem(UI_KEY) || '{}'); } catch (e) { return {}; } }
+  function bindAppearance() {
+    const ui = loadUI();
+    applyUI(ui);
+    $('#themeMenu').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.theme) ui.theme = b.dataset.theme;
+      if (b.dataset.accent) ui.accent = b.dataset.accent;
+      if (b.dataset.density) ui.density = b.dataset.density;
+      applyUI(ui);
+      try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (err) { /* sin almacenamiento */ }
+    });
+  }
+
   // ───────────── Pestañas y teclado ─────────────
   function switchTab(name) {
     $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -2941,6 +3170,8 @@
       if (!$('#newModal').hidden || !$('#trModal').hidden) return;
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.target.isContentEditable) return;
+      if (ddOpen || document.querySelector('.menu:not([hidden])')) return;
+      if (tag === 'button' && (e.code === 'Space' || e.key === 'Enter')) return;
       const mod = e.ctrlKey || e.metaKey;
       if (e.code === 'Space') { e.preventDefault(); setPlaying(!S.playing); }
       else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
@@ -2968,7 +3199,7 @@
 
     const pill = $('#connPill');
     pill.classList.add(CEP.available ? 'ok' : 'web');
-    pill.querySelector('span').textContent = CEP.available ? 'Premiere conectado' : 'Modo navegador';
+    pill.querySelector('span').textContent = CEP.available ? 'Premiere conectado' : 'Modo navegador · sin Premiere';
     CEP.registerKeys();
 
     renderLayerBar();
@@ -3009,6 +3240,11 @@
     try { tab = localStorage.getItem('subfx.tab') || 'style'; } catch (e) { /* ignorado */ }
     if ($('#tab-' + tab)) switchTab(tab);
     smoothDetails($('#tab-tools'));
+    bindMenus();
+    bindAppearance();
+    bindToggles();
+    enhanceSelects();
+    setInterval(refreshSelects, 250);
     fitStage();
     moveTabInk();
     window.addEventListener('resize', moveTabInk);

@@ -6,14 +6,14 @@
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
-      <!-- Premiere Pro 2021 (15.0) en adelante -->
-      <Host Name="PPRO" Version="[15.0,99.9]" />
+      <!-- Premiere Pro 2022 (22.0) en adelante: CEP 11 (Chromium 88) -->
+      <Host Name="PPRO" Version="[22.0,99.9]" />
     </HostList>
     <LocaleList>
       <Locale Code="All" />
     </LocaleList>
     <RequiredRuntimeList>
-      <RequiredRuntime Name="CSXS" Version="10.0" />
+      <RequiredRuntime Name="CSXS" Version="11.0" />
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>

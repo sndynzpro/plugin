@@ -4,97 +4,132 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SubtitleEngine Pro</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600;700&family=Inter:wght@100;200;300;400;500;600;700;800;900&family=Montserrat:ital,wght@0,400;0,700;0,800;0,900;1,800;1,900&family=Poppins:wght@400;600;700;800;900&family=Bebas+Neue&family=Anton&family=Luckiest+Guy&family=Bangers&family=Archivo+Black&family=Oswald:wght@500;700&family=Permanent+Marker&family=Playfair+Display:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-render" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h1M7 8v8M11 5v14M15 9v6M19 7v10M22 12h-1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7.5 20 17M8 16.5 20 7"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24"><path d="M4 7h6l4 5-4 5H4"/><path d="M14 12h6"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="m9 2 3 4 3-4"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-style" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+  <symbol id="i-word" viewBox="0 0 24 24"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></symbol>
+  <symbol id="i-tools" viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l4 4 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.5-.5-.5-2.5z"/></symbol>
+  <symbol id="i-bg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 5 5 3-3 5 5"/></symbol>
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/></symbol>
+</svg>
 <div class="app">
 
-  <!-- ───────────── Cabecera ───────────── -->
-  <header class="topbar">
-    <div class="brand">
-      <h1>SubtitleEngine<span>Pro</span></h1>
-      <div class="conn" id="connPill"><i></i><span>Conectando…</span></div>
-    </div>
-    <div class="top-actions">
-      <button class="btn ghost" id="btnUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
-        <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg>
-      </button>
-      <button class="btn ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer">
-        <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg>
-      </button>
-      <button class="btn" id="btnNew" title="Empezar un proyecto nuevo desde cero">
-        <span class="lbl-long">Nuevo</span><span class="lbl-short">+</span>
-      </button>
-      <button class="btn" id="btnLoad" title="Importar .srt, .vtt o .ass">
-        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
-        <span class="lbl-long">Importar SRT</span><span class="lbl-short">SRT</span>
-      </button>
-      <input type="file" id="fileSrt" accept=".srt,.vtt,.ass,.ssa,.json,.txt" hidden>
+  <!-- ───────────── Barra de la aplicación ───────────── -->
+  <header class="appbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><strong>SubtitleEngine</strong><span class="tag">Pro</span></div>
+    <div class="conn" id="connPill"><i></i><span>Conectando…</span></div>
+    <div class="appbar-actions">
+      <button class="btn icon ghost" id="btnUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"><svg class="ic"><use href="#i-undo"/></svg></button>
+      <button class="btn icon ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer"><svg class="ic"><use href="#i-redo"/></svg></button>
+      <span class="divider"></span>
       <div class="menu-wrap">
-        <button class="btn" id="btnSubExport" aria-haspopup="true">
-          <svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
-          <span class="lbl-long">Exportar</span><span class="lbl-short">Exp</span>
-        </button>
+        <button class="btn" id="btnSubExport" aria-haspopup="true" title="Proyecto, importar y exportar"><svg class="ic"><use href="#i-file"/></svg><span class="lbl-long">Archivo</span><svg class="ic"><use href="#i-chevron"/></svg></button>
         <div class="menu" id="subExportMenu" hidden>
-          <button data-fmt="srt">Subtítulos .srt</button>
-          <button data-fmt="ass">Subtítulos con estilo .ass</button>
+          <button id="btnNew"><svg class="ic"><use href="#i-new"/></svg>Nuevo proyecto…</button>
+          <button id="btnLoad"><svg class="ic"><use href="#i-import"/></svg>Importar subtítulos… <kbd>SRT · ASS · JSON</kbd></button>
+          <hr>
+          <button data-fmt="srt"><svg class="ic"><use href="#i-export"/></svg>Exportar .srt</button>
+          <button data-fmt="ass"><svg class="ic"><use href="#i-export"/></svg>Exportar .ass con estilos</button>
+        </div>
+        <input type="file" id="fileSrt" accept=".srt,.vtt,.ass,.ssa,.json,.txt" hidden>
+      </div>
+      <div class="menu-wrap">
+        <button class="btn icon ghost" id="btnTheme" aria-haspopup="true" title="Apariencia" aria-label="Apariencia"><svg class="ic"><use href="#i-theme"/></svg></button>
+        <div class="menu" id="themeMenu" hidden>
+          <div class="menu-label">Tema</div>
+          <button data-theme="dark">Oscuro (como Premiere)</button>
+          <button data-theme="light">Claro</button>
+          <button data-theme="sage">Salvia</button>
+          <div class="menu-label">Acento</div>
+          <div class="accent-row" id="accentRow">
+            <button data-accent="#FAFF96" style="--c:#FAFF96" title="Amarillo 30X"></button>
+            <button data-accent="#7AA2FF" style="--c:#7AA2FF" title="Azul"></button>
+            <button data-accent="#B794F6" style="--c:#B794F6" title="Violeta"></button>
+            <button data-accent="#5EE3A5" style="--c:#5EE3A5" title="Verde"></button>
+            <button data-accent="#FF8A65" style="--c:#FF8A65" title="Coral"></button>
+          </div>
+          <div class="menu-label">Densidad</div>
+          <button data-density="compact">Compacta</button>
+          <button data-density="comfortable">Cómoda</button>
         </div>
       </div>
-      <button class="btn" id="btnDraftTop" title="Vista previa rápida en Premiere: PNG fijos por palabra en una pista aparte">
-        <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
-        <span class="lbl-long">Vista previa</span><span class="lbl-short">Prev</span>
-      </button>
-      <button class="btn primary" id="btnExportTop">
-        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        <span class="lbl-long">Render a Timeline</span><span class="lbl-short">Render</span>
-      </button>
+      <span class="divider"></span>
+      <button class="btn" id="btnDraftTop" title="Vista previa rápida en Premiere: PNG fijos por palabra en una pista aparte"><svg class="ic"><use href="#i-eye"/></svg><span class="lbl-long">Vista previa</span></button>
+      <button class="btn primary" id="btnExportTop" title="Renderizar e insertar en la línea de tiempo"><svg class="ic"><use href="#i-render"/></svg><span class="lbl-long">Render</span></button>
     </div>
   </header>
 
   <!-- ───────────── Lista y edición de subtítulos ───────────── -->
-  <section class="card subs-card">
-    <div class="card-head">
-      <div>
+  <section class="pane subs-card">
+    <div class="pane-head">
+      <div class="pane-title">
         <h2>Subtítulos</h2>
         <span class="sub" id="subsSummary">—</span>
       </div>
-      <div class="head-right">
-        <span class="sel-count" id="selCount">0 seleccionadas</span>
+      <span class="sel-count" id="selCount">0 seleccionadas</span>
+    </div>
+    <div class="toolbar">
+      <button class="btn small primary" id="btnTranscribe" title="Transcribe el audio del timeline con Whisper, con tiempos por palabra"><svg class="ic"><use href="#i-wave"/></svg>Transcribir</button>
+      <span class="divider"></span>
+      <button class="btn icon small ghost" id="btnAddCue" title="Agregar línea" aria-label="Agregar línea"><svg class="ic"><use href="#i-plus"/></svg></button>
+      <button class="btn icon small ghost" id="btnAddParallel" title="Añadir línea paralela (otra capa, mismo tiempo)" aria-label="Añadir paralela"><svg class="ic"><use href="#i-layers"/></svg></button>
+      <button class="btn icon small ghost" id="btnSplit" title="Dividir antes de la palabra seleccionada" aria-label="Dividir"><svg class="ic"><use href="#i-split"/></svg></button>
+      <button class="btn icon small ghost" id="btnMerge" title="Unir con el siguiente" aria-label="Unir"><svg class="ic"><use href="#i-merge"/></svg></button>
+      <button class="btn icon small ghost" id="btnAutoKey" title="Palabra clave automática: la de mayor impacto de cada subtítulo" aria-label="Palabra clave automática"><svg class="ic"><use href="#i-star"/></svg></button>
+      <span class="spacer"></span>
+      <div class="menu-wrap">
+        <button class="btn small ghost" id="btnSelMenu" aria-haspopup="true" title="Seleccionar palabras"><svg class="ic"><use href="#i-select"/></svg>Seleccionar<svg class="ic"><use href="#i-chevron"/></svg></button>
+        <div class="menu" id="quick" hidden>
+          <button data-q="all">Todas <kbd>Ctrl A</kbd></button>
+          <button data-q="none">Ninguna <kbd>Esc</kbd></button>
+          <button data-q="invert">Invertir selección</button>
+          <button data-q="same" title="Todas las apariciones de las palabras seleccionadas">Iguales a la selección</button>
+          <hr>
+          <button data-q="key">Palabras clave</button>
+          <button data-q="em">Con énfasis</button>
+          <button data-q="fx">Con efecto o color</button>
+          <button data-q="low" title="Palabras que Whisper transcribió con poca seguridad">Dudosas (Whisper)</button>
+          <button data-q="numbers">Con números</button>
+          <button data-q="long" title="Palabras de 7 letras o más">Largas</button>
+          <hr>
+          <button id="btnClearFx" class="danger" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar todos los efectos</button>
+        </div>
       </div>
     </div>
-    <div class="row-tools">
-      <button class="btn small primary" id="btnTranscribe" title="Transcribe el audio del timeline con Whisper, con tiempos por palabra">Transcribir</button>
-      <button class="btn small" id="btnAddCue">+ Agregar línea</button>
-      <button class="btn small" id="btnAddParallel" title="Crea una línea en otra capa con el mismo tiempo que el subtítulo seleccionado">+ Añadir paralela</button>
-      <button class="btn small" id="btnSplit" title="Divide el subtítulo antes de la palabra seleccionada">Dividir</button>
-      <button class="btn small" id="btnMerge" title="Une el subtítulo seleccionado con el siguiente">Unir</button>
-      <button class="btn small" id="btnAutoKey" title="Marca la palabra de mayor impacto de cada subtítulo">Palabra clave auto</button>
-      <button class="link-btn" id="btnClearFx" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar efectos</button>
-    </div>
-    <div class="subs-tools">
-      <div class="search">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
-        <input id="search" type="text" placeholder="Buscar palabra (Enter selecciona)" autocomplete="off">
-      </div>
-      <div class="search replace">
-        <input id="replace" type="text" placeholder="Reemplazar por…" autocomplete="off">
-        <button class="btn small" id="btnReplace">Reemplazar</button>
-      </div>
-    </div>
-    <div class="quick" id="quick">
-      <button data-q="all">Todas</button>
-      <button data-q="none">Ninguna</button>
-      <button data-q="invert">Invertir</button>
-      <button data-q="same" title="Todas las apariciones de las palabras seleccionadas">Iguales</button>
-      <button data-q="numbers">Números</button>
-      <button data-q="long" title="Palabras de 7 letras o más">Largas</button>
-      <button data-q="fx">Con efecto</button>
-      <button data-q="key">Clave</button>
-      <button data-q="em">Énfasis</button>
-      <button data-q="low" title="Palabras que Whisper transcribió con poca seguridad">Dudosas</button>
+    <div class="find">
+      <label class="input-icon"><svg class="ic"><use href="#i-search"/></svg><input id="search" type="text" placeholder="Buscar · Enter selecciona" autocomplete="off"></label>
+      <label class="input-icon"><svg class="ic"><use href="#i-swap"/></svg><input id="replace" type="text" placeholder="Reemplazar por…" autocomplete="off"></label>
+      <button class="btn small" id="btnReplace">Reemplazar</button>
     </div>
     <div class="cue-list" id="cueList"></div>
     <div class="empty" id="emptyState" hidden>
@@ -110,7 +145,7 @@
   </section>
 
   <!-- ───────────── Vista previa ───────────── -->
-  <section class="card preview-card">
+  <section class="pane preview-card">
     <div class="stage" id="stage">
       <div class="stage-inner" id="stageInner">
         <video id="refVideo" playsinline preload="auto" hidden></video>
@@ -120,8 +155,8 @@
     </div>
     <div class="transport">
       <button class="play" id="btnPlay" title="Reproducir / pausar (Espacio)" aria-label="Reproducir">
-        <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
-        <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+        <svg class="ic i-play"><use href="#i-play"/></svg>
+        <svg class="ic i-pause"><use href="#i-pause"/></svg>
       </button>
       <div class="timecode" id="timeLabel">00:00:00:00</div>
       <div class="timeline" id="timeline" title="Arrastra los bloques para moverlos o sus bordes para recortarlos">
@@ -130,27 +165,23 @@
         <div class="tl-head" id="tlHead"></div>
       </div>
     </div>
-    <div class="transport-2">
-      <label class="pill-toggle" title="Sincroniza el cabezal con Premiere en ambos sentidos">
-        <input type="checkbox" id="chkSync"><span></span>Seguir a Premiere
-      </label>
-      <label class="pill-toggle" title="Al pausar o mover el cabezal en Premiere, usa el fotograma real del timeline como fondo">
-        <input type="checkbox" id="chkLiveBg"><span></span>Timeline en vivo
-      </label>
-      <label class="pill-toggle" title="Muestra las zonas seguras del estilo">
-        <input type="checkbox" id="chkSafe" checked><span></span>Zona segura
-      </label>
+    <div class="viewer-tools">
+      <label class="tgl" title="Seguir la reproducción de Premiere (cabezal sincronizado)"><input type="checkbox" id="chkSync"><svg class="ic"><use href="#i-link"/></svg><span>Seguir</span></label>
+      <label class="tgl" title="Al pausar, usar el fotograma real del timeline como fondo"><input type="checkbox" id="chkLiveBg"><svg class="ic"><use href="#i-tv"/></svg><span>En vivo</span></label>
+      <label class="tgl" title="Mostrar las zonas seguras del estilo"><input type="checkbox" id="chkSafe" checked><svg class="ic"><use href="#i-frame"/></svg><span>Zona segura</span></label>
+      <span class="spacer"></span>
       <div class="menu-wrap">
-        <button class="btn small" id="btnVideo" aria-haspopup="true" title="Vídeo de referencia debajo de los subtítulos, sincronizado al fotograma">Vídeo ▾</button>
+        <button class="btn small ghost" id="btnVideo" aria-haspopup="true" title="Vídeo de referencia debajo de los subtítulos, sincronizado al fotograma"><svg class="ic"><use href="#i-film"/></svg><span class="lbl-long">Vídeo</span><svg class="ic"><use href="#i-chevron"/></svg></button>
         <div class="menu up" id="videoMenu" hidden>
-          <button data-v="proxy">Crear proxy del timeline (ffmpeg)</button>
-          <button data-v="file">Cargar un vídeo exportado…</button>
+          <button data-v="proxy"><svg class="ic"><use href="#i-film"/></svg>Crear proxy del timeline (ffmpeg)</button>
+          <button data-v="file"><svg class="ic"><use href="#i-import"/></svg>Cargar un vídeo exportado…</button>
+          <hr>
           <button data-v="mute">Silenciar / activar audio</button>
-          <button data-v="off">Quitar el vídeo</button>
+          <button data-v="off" class="danger">Quitar el vídeo</button>
         </div>
         <input type="file" id="videoFile" accept="video/*" hidden>
       </div>
-      <button class="btn small" id="btnGrab" title="Usa el fotograma actual de Premiere como fondo">Capturar fotograma</button>
+      <button class="btn icon small ghost" id="btnGrab" title="Usar el fotograma actual de Premiere como fondo" aria-label="Capturar fotograma"><svg class="ic"><use href="#i-camera"/></svg></button>
       <select class="mini-select" id="selBg" title="Fondo de la vista previa">
         <option value="checker">Transparente</option>
         <option value="dark">Oscuro</option>
@@ -163,29 +194,41 @@
   </section>
 
   <!-- ───────────── Inspector ───────────── -->
-  <aside class="col-side card">
-    <nav class="tabs">
-      <button class="tab active" data-tab="style">Estilos</button>
-      <button class="tab" data-tab="fx">Efectos</button>
-      <button class="tab" data-tab="tools">Herramientas</button>
-      <button class="tab" data-tab="export">Render</button>
+  <aside class="pane col-side">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="style" role="tab"><svg class="ic"><use href="#i-style"/></svg><span>Estilo</span></button>
+      <button class="tab" data-tab="fx" role="tab"><svg class="ic"><use href="#i-word"/></svg><span>Palabra</span></button>
+      <button class="tab" data-tab="tools" role="tab"><svg class="ic"><use href="#i-tools"/></svg><span>Edición</span></button>
+      <button class="tab" data-tab="export" role="tab"><svg class="ic"><use href="#i-render"/></svg><span>Render</span></button>
     </nav>
 
     <!-- Estilos -->
     <div class="tab-panel active" id="tab-style">
       <div class="layers" id="layerBar"></div>
-      <div class="seg" id="styleCats"></div>
-      <div class="style-gallery" id="styleGallery"></div>
-      <div class="row-btns wrap" id="styleActions">
-        <button class="btn small" data-act="dup">Guardar como nuevo preset</button>
-        <button class="btn small" data-act="assign" title="Mueve los subtítulos con palabras seleccionadas a esta capa">Aplicar a seleccionados</button>
-        <button class="btn small" data-act="rename">Renombrar</button>
-        <button class="btn small" data-act="reset">Restablecer</button>
-        <button class="btn small danger" data-act="delete">Eliminar</button>
-        <button class="btn small" data-act="export">Exportar JSON</button>
-        <button class="btn small" data-act="import">Importar JSON</button>
-        <input type="file" id="styleFile" accept=".json" hidden>
-      </div>
+      <details class="sec presets" open>
+        <summary>Preset <span class="sum-val" id="presetSum"></span></summary>
+        <div class="sec-body">
+          <div class="preset-bar">
+            <select id="styleCats" class="mini-select" title="Categoría de presets"></select>
+            <div class="menu-wrap">
+              <button class="btn icon small" id="btnStyleMenu" aria-haspopup="true" title="Acciones del preset" aria-label="Acciones del preset"><svg class="ic"><use href="#i-dots"/></svg></button>
+              <div class="menu" id="styleActions" hidden>
+                <button data-act="dup">Guardar como nuevo preset</button>
+                <button data-act="assign" title="Mueve los subtítulos con palabras seleccionadas a esta capa">Aplicar a los subtítulos seleccionados</button>
+                <button data-act="rename">Renombrar…</button>
+                <button data-act="reset">Restablecer a fábrica</button>
+                <hr>
+                <button data-act="export">Exportar JSON…</button>
+                <button data-act="import">Importar JSON…</button>
+                <hr>
+                <button data-act="delete" class="danger">Eliminar preset</button>
+              </div>
+              <input type="file" id="styleFile" accept=".json" hidden>
+            </div>
+          </div>
+          <div class="style-gallery" id="styleGallery"></div>
+        </div>
+      </details>
       <div id="styleEditor"></div>
     </div>
 
@@ -454,11 +497,11 @@
         <label class="toggle"><input type="checkbox" id="expReplace" checked><span></span></label>
       </div>
       <button class="btn big" id="btnDraft" title="PNG fijos por palabra: se generan en segundos para ver el resultado a velocidad real en Premiere">
-        <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+        <svg class="ic"><use href="#i-eye"/></svg>
         Vista previa rápida en Premiere
       </button>
       <button class="btn primary big" id="btnExport">
-        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <svg class="ic"><use href="#i-render"/></svg>
         Render a Timeline
       </button>
       <div class="progress" id="expProgress" hidden>

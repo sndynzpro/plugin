@@ -50,7 +50,7 @@ Guía completa, lista de pruebas en Premiere y publicación de versiones: [docs/
 
 ## Instalación
 
-Requiere Premiere Pro 2021 (v15) o posterior, en Windows o macOS.
+Requiere Premiere Pro 2022 (v22) o posterior, en Windows o macOS.
 
 - **Windows**: ejecuta `install/instalar-windows.bat`.
 - **macOS**: `bash install/instalar-mac.sh`.
