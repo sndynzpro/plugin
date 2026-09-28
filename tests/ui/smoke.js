@@ -147,7 +147,10 @@ function wav(file, secs, spans) {
   // 4. Pipeline PNG (sistema de archivos simulado)
   await check('render PNG: estático, secuencia y caché', () => page.evaluate(async () => {
     const files = {}, CEP = window.SubFX_CEP;
-    Object.assign(CEP.fs, { mkdirp() {}, writeFile(p) { files[p] = 1; }, exists: p => !!files[p], encodePNG: async () => 'x' });
+    Object.assign(CEP.fs, {
+      mkdirp() {}, writeFile(p) { files[p] = 1; }, exists: p => !!files[p], encodePNG: async () => 'x',
+      list: dir => Array.from(new Set(Object.keys(files).filter(f => f.startsWith(dir + '/')).map(f => f.slice(dir.length + 1).split('/')[0])))
+    });
     const R = window.SubFX_Renderer, ST = window.SubFX_Styles, EXP = window.SubFX_Exporter;
     const cues = [{ id: 'c1', start: 0, end: 2, words: 'uno dos tres cuatro'.split(' ').map((t, i) => ({ id: 'w' + i, text: t, ovr: {} })) }];
     const run = async id => { const st = ST.make(ST.PRESETS.find(p => p.id === id)); return EXP.render({ layers: [{ style: st, chunks: R.buildChunks(cues, st) }], W: 1080, H: 1920, fps: 30, outDir: '/o', mode: 'auto' }); };
@@ -155,6 +158,14 @@ function wav(file, secs, spans) {
     if (a.items.length !== 1 || !a.items[0].still || Math.abs(a.items[0].dur - 2) > 1e-6) throw new Error('30X Default debería ser 1 PNG estático de 2 s');
     if (!/^\d{4}_\d\d-\d\d-\d\d-\d\d_[0-9a-f]{8}\.png$/.test(a.items[0].path.split('/').pop())) throw new Error('nombre inesperado ' + a.items[0].path);
     if ((await run('x30-default')).cached !== 1) throw new Error('no reutiliza el PNG ya renderizado');
+    // Un subtítulo nuevo ANTES de otro desplaza su posición en la lista: la caché debe seguir sirviendo
+    const st0 = ST.make(ST.PRESETS.find(p => p.id === 'x30-default'));
+    const later = [{ id: 'L', start: 5, end: 7, words: 'caché por contenido'.split(' ').map((t, i) => ({ id: 'l' + i, text: t, ovr: {} })) }];
+    const r1 = await EXP.render({ layers: [{ style: st0, chunks: R.buildChunks(later, st0) }], W: 1080, H: 1920, fps: 30, outDir: '/k', mode: 'auto' });
+    const withNew = [{ id: 'N', start: 1, end: 3, words: [{ id: 'nw', text: 'nuevo', ovr: {} }] }].concat(later);
+    const r2 = await EXP.render({ layers: [{ style: st0, chunks: R.buildChunks(withNew, st0) }], W: 1080, H: 1920, fps: 30, outDir: '/k', mode: 'auto' });
+    if (!/^0001_/.test(r1.items[0].path.split('/').pop())) throw new Error('índice inesperado');
+    if (r2.cached !== 1 || r2.encoded !== 1) throw new Error(`caché dependiente de la posición: ${r2.cached} reutilizados, ${r2.encoded} codificados`);
     const h = await run('hormozi');
     if (!h.items.every(i => !i.still) || h.total < 50) throw new Error('Hormozi debería exportarse como secuencia');
     return `${a.items.length} estático · ${h.items.length} secuencias (${h.total} fotogramas)`;
@@ -220,6 +231,18 @@ function wav(file, secs, spans) {
     const n = await page.$$eval('.chip.em', e => e.length);
     expect(n === 1, 'chips con énfasis: ' + n);
     await page.keyboard.press('Escape');
+  });
+
+  // 6b2. Palabras repetidas al editar el texto: cada una conserva su identidad
+  await check('palabras repetidas no comparten identidad', async () => {
+    await page.click('.cue:first-child [data-act="edit"]');
+    await page.fill('.cue:first-child .cue-edit', 'no no no quiero');
+    await page.press('.cue:first-child .cue-edit', 'Enter');
+    await page.click('.cue:first-child [data-act="edit"]');
+    await page.fill('.cue:first-child .cue-edit', 'no no no quiero ya');
+    await page.press('.cue:first-child .cue-edit', 'Enter');
+    const ids = await page.$$eval('.cue:first-child .chip', e => e.map(x => x.dataset.w));
+    expect(ids.length === 5 && new Set(ids).size === 5, 'ids repetidos: ' + ids.join(','));
   });
 
   // 6c. Dividir y unir subtítulos

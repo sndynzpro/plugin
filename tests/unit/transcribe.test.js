@@ -136,3 +136,38 @@ require('fs').writeFileSync(of + '.json', require('fs').readFileSync(${JSON.stri
     assert.deepEqual(prog, [0.5]);
   } finally { delete globalThis.require; }
 });
+
+test('los cortes avanzan siempre, incluso con un silencio enorme (antes: bucle infinito)', () => {
+  const r = T.chunkRanges(2000, 600, [{ start: 500, end: 1300 }]);
+  assert.ok(r.length <= 6, 'demasiados trozos: ' + r.length);
+  for (let i = 0; i < r.length; i++) {
+    assert.ok(r[i].end > r[i].start, 'trozo vacío');
+    assert.ok(r[i].end - r[i].start <= 600 + 1e-9, 'trozo mayor que el límite');
+    if (i) assert.equal(r[i].start, r[i - 1].end);
+  }
+  assert.equal(r[r.length - 1].end, 2000);
+});
+
+test('la descarga de modelos no guarda archivos truncados', async () => {
+  const srv = await new Promise(res => {
+    const s = http.createServer((req, rs) => {
+      rs.writeHead(200, { 'Content-Length': 1000 });
+      rs.write(Buffer.alloc(300));
+      setTimeout(() => rs.destroy(), 50);          // corta la conexión a mitad
+    }).listen(0, '127.0.0.1', () => res(s));
+  });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'se-dl-'));
+  const dest = path.join(dir, 'ggml-base.bin');
+  globalThis.require = require;
+  const orig = T.modelUrl;
+  try {
+    // Se descarga desde el servidor local sustituyendo el https por http
+    const https = require('https'), http2 = require('http');
+    const get = https.get;
+    https.get = (url, cb) => http2.get(`http://127.0.0.1:${srv.address().port}/m`, cb);
+    await assert.rejects(T.downloadModel('base', dest), /interrump|incompleta|aborted|socket|ECONNRESET/i);
+    https.get = get;
+    assert.equal(fs.existsSync(dest), false);
+    assert.equal(fs.existsSync(dest + '.part'), false);
+  } finally { delete globalThis.require; srv.close(); void orig; }
+});

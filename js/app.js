@@ -407,7 +407,7 @@
   async function buildProxy() {
     if (!CEP.available) { toast('El proxy se crea dentro de Premiere. Aquí puedes «Cargar un vídeo exportado…»', 'warn', 5000); return; }
     if (proxying) return;
-    const ff = S.settings.ffmpeg || PX.findFfmpeg();
+    const ff = ffmpegBin();
     if (!ff) {
       toast('Instala ffmpeg (Mac: brew install ffmpeg · Windows: winget install ffmpeg) o exporta un .mp4 de baja calidad desde Premiere y usa «Cargar un vídeo exportado…»', 'warn', 9000);
       return;
@@ -638,7 +638,13 @@
         tlDrag.moved = true;
       }
       const c = tlDrag.cue, fps = seqFps(), q = v => Math.round(v * fps) / fps;
-      if (tlDrag.mode === 'm') { const len = tlDrag.e - tlDrag.s; c.start = q(Math.max(0, tlDrag.s + d)); c.end = c.start + len; }
+      if (tlDrag.mode === 'm') {
+        const len = tlDrag.e - tlDrag.s, before = c.start;
+        c.start = q(Math.max(0, tlDrag.s + d));
+        c.end = c.start + len;
+        const dd = c.start - before;  // los tiempos reales por palabra se mueven con el bloque
+        if (dd) c.words.forEach(w => { if (typeof w.t0 === 'number') { w.t0 += dd; if (typeof w.t1 === 'number') w.t1 += dd; } });
+      }
       else if (tlDrag.mode === 'l') c.start = q(Math.max(0, Math.min(tlDrag.e - 0.1, tlDrag.s + d)));
       else c.end = q(Math.max(tlDrag.s + 0.1, tlDrag.e + d));
       rebuild();
@@ -837,9 +843,11 @@
   function setCueText(cue, text) {
     const old = cue.words;
     const parts = text.split(' ').filter(Boolean);
+    const used = new Set();
     cue.words = parts.map((t, i) => {
-      const prev = old.find((w, j) => w.text === t && Math.abs(j - i) <= 2);
-      return prev ? prev : { id: newId('w'), text: t, ovr: {} };
+      const prev = old.find((w, j) => !used.has(w) && w.text === t && Math.abs(j - i) <= 2);
+      if (prev) { used.add(prev); return prev; }
+      return { id: newId('w'), text: t, ovr: {} };
     });
   }
 
@@ -2289,15 +2297,21 @@
   // ───────────── Herramientas: silencios ─────────────
   const audioCache = new Map();
 
+  function ffmpegBin() { return S.settings.ffmpeg || PX.findFfmpeg() || 'ffmpeg'; }
+  const BIG_MEDIA = 300 * 1024 * 1024;
+
   async function decodeMedia(path) {
     if (audioCache.has(path)) return audioCache.get(path);
     let res;
     try {
+      // Un vídeo de varios GB no se carga entero en memoria: se extrae el audio con ffmpeg
+      if (CEP.fs.size(path) > BIG_MEDIA && PX.findFfmpeg()) throw new Error('grande');
       res = await AU.decodeArrayBuffer(CEP.fs.readBinary(path));
     } catch (err) {
+      if (CEP.fs.size(path) > BIG_MEDIA && !PX.findFfmpeg()) throw new Error('El archivo es muy grande para leerlo en el panel. Instala ffmpeg para analizar su audio.');
       // Códec no soportado por el panel → ffmpeg si está instalado
       const wav = `${CEP.fs.tmpDir()}/subtitleengine_${EXP.hash(path)}.wav`;
-      await CEP.fs.ffmpegToWav(path, wav);
+      await CEP.fs.ffmpegToWav(path, wav, ffmpegBin());
       res = await AU.decodeArrayBuffer(CEP.fs.readBinary(wav));
     }
     audioCache.set(path, res);
@@ -2394,6 +2408,10 @@
           S.cues.forEach(c => {
             c.start = remapTime(c.start + off, sorted) - off;
             c.end = Math.max(c.start + 0.1, remapTime(c.end + off, sorted) - off);
+            c.words.forEach(w => {
+              if (typeof w.t0 === 'number') w.t0 = remapTime(w.t0 + off, sorted) - off;
+              if (typeof w.t1 === 'number') w.t1 = remapTime(w.t1 + off, sorted) - off;
+            });
           });
           onCuesReplaced();
         }
@@ -2731,7 +2749,7 @@
     const fps = seq.fps || 30;
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
     const outDir = (s.outDir || (CEP.systemPath('myDocuments') + '/SubtitleEngine Renders')).replace(/\/+$/, '') + (draft ? '/preview' : '');
-    const anchorSec = Math.max(0, (s.startMode === 'playhead' ? seq.playhead : 0) + s.offset / 1000);
+    const anchorSec = (s.startMode === 'playhead' ? seq.playhead : 0) + s.offset / 1000; // puede ser negativo
     const usedLayers = S.layers.map((l, i) => i).filter(i => S.cues.some(c => (c.layer || 0) === i));
     const maxLayer = Math.max(0, ...usedLayers);
 
@@ -2760,7 +2778,8 @@
       });
       status.textContent = 'Insertando en la línea de tiempo…';
       const tracks = [];
-      for (let i = 0; i <= maxLayer; i++) tracks.push(draft ? -2 : (s.track < 0 ? -1 : s.track + i));
+      // -2 = la pista propia (la que ya tiene los clips SE· de esa capa) o una nueva si no existe
+      for (let i = 0; i <= maxLayer; i++) tracks.push(draft ? -2 : (s.track < 0 ? (s.replace !== false ? -2 : -1) : s.track + i));
       const payload = {
         binName: (draft ? 'SubtitleEngine Preview ' : 'SubtitleEngine ') + stamp,
         trackName: draft ? 'SubtitleEngine Preview' : 'SubtitleEngine',
@@ -2840,7 +2859,7 @@
     // Audio y ffmpeg
     add('Decodificador de audio', (window.AudioContext || window.webkitAudioContext) ? 'ok' : 'bad', 'Web Audio');
     if (CEP.available) {
-      const v = await CEP.fs.ffmpegVersion();
+      const v = await CEP.fs.ffmpegVersion(ffmpegBin());
       add('ffmpeg (respaldo para códecs)', v ? 'ok' : 'warn', v || 'No instalado. Solo hace falta si el panel no puede leer el audio de tus clips.');
     }
 

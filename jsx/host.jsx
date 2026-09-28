@@ -237,7 +237,14 @@ var SubFX = (function () {
                     }
                 }
                 seq = app.project.activeSequence;
-                if (ti >= seq.videoTracks.numTracks) ti = seq.videoTracks.numTracks - 1;
+                // Capa extra por encima de la última pista: se crea una pista (dos capas nunca comparten pista)
+                var guard = 0;
+                while (ti >= seq.videoTracks.numTracks && guard++ < 8) {
+                    if (addVideoTrack(p.trackName ? p.trackName + ' ' + (l + 1) : '') < 0) break;
+                    seq = app.project.activeSequence;
+                }
+                if (ti >= seq.videoTracks.numTracks) { warnings.push('No se pudo crear la pista de la capa ' + (l + 1) + '.'); ti = seq.videoTracks.numTracks - 1; }
+                for (var q = 0; q < resolved.length; q++) if (resolved[q] === ti) warnings.push('Las capas ' + (q + 1) + ' y ' + (l + 1) + ' comparten la pista V' + (ti + 1) + '.');
                 resolved.push(ti);
             }
             var removed = 0;
@@ -259,9 +266,19 @@ var SubFX = (function () {
                     pi.setFootageInterpretation(interp);
                 } catch (e1) { /* versiones antiguas */ }
                 if (item.still) { try { pi.setInPoint(0, 4); pi.setOutPoint(item.frames / fps, 4); } catch (e0) {} }
+                else { try { pi.setInPoint(0, 4); } catch (e0b) {} }
                 try { pi.name = item.name; } catch (e2) {}
 
-                var startT = (anchor + item.f0) * tb, endT = (anchor + item.f0 + item.frames) * tb;
+                var f0 = anchor + item.f0, frames = item.frames;
+                if (f0 + frames <= 0) continue;              // queda entero antes del inicio de la secuencia
+                if (f0 < 0) {
+                    // Desfase negativo: se omiten los primeros fotogramas del clip
+                    var skip = -f0;
+                    try { if (item.still) pi.setOutPoint((frames - skip) / fps, 4); else pi.setInPoint(skip / fps, 4); } catch (eS) {}
+                    frames -= skip;
+                    f0 = 0;
+                }
+                var startT = f0 * tb, endT = (f0 + frames) * tb;
                 if (!placeAt(track, pi, startT)) { warnings.push('No se pudo colocar: ' + item.name); continue; }
                 placed++;
                 var c = clipAt(track, startT, tb);
@@ -428,6 +445,7 @@ var SubFX = (function () {
             }
 
             app.enableQE();
+            var useMove = true;
             for (r = 0; r < ranges.length; r++) {
                 // Redondear al fotograma para evitar clips de menos de un cuadro
                 var a = Math.round(ranges[r].start * fps) / fps;
@@ -436,33 +454,39 @@ var SubFX = (function () {
                 razorAll(seq, b);
                 razorAll(seq, a);
                 seq = app.project.activeSequence;
-                var tracks = allTracks(seq);
-                var touched = [];
-                for (i = 0; i < tracks.length; i++) {
-                    var tr = tracks[i].t;
-                    touched.push(false);
-                    if (isLocked(tr)) continue;
-                    for (j = tr.clips.numItems - 1; j >= 0; j--) {
-                        var c = tr.clips[j];
-                        var cs = secs(c.start), ce = secs(c.end);
-                        if (cs >= a - EPS && ce <= b + EPS) {
-                            c.remove(true, true); // borrado con rizo
-                            removed++;
-                            touched[i] = true;
+                var tracks = allTracks(seq), i2, j2, c;
+                if (useMove) {
+                    // 1) Se quita lo que quedó dentro de [a, b] en todas las pistas, sin rizo
+                    for (i2 = 0; i2 < tracks.length; i2++) {
+                        if (isLocked(tracks[i2].t)) continue;
+                        for (j2 = tracks[i2].t.clips.numItems - 1; j2 >= 0; j2--) {
+                            c = tracks[i2].t.clips[j2];
+                            if (secs(c.start) >= a - EPS && secs(c.end) <= b + EPS) { c.remove(false, false); removed++; }
                         }
                     }
-                }
-                // Pistas sin contenido en el rango: desplazar lo que viene después para no desincronizar
-                for (i = 0; i < tracks.length; i++) {
-                    if (touched[i] || isLocked(tracks[i].t)) continue;
-                    var t2 = tracks[i].t;
-                    for (j = 0; j < t2.clips.numItems; j++) {
-                        var c2 = t2.clips[j];
-                        if (secs(c2.start) >= b - EPS) {
-                            try { c2.move(mkTime(-(b - a))); } catch (e3) {
-                                if (warnings.length < 5) warnings.push('No se pudo desplazar un clip en ' + (tracks[i].video ? 'V' : 'A') + (tracks[i].i + 1) + '.');
+                    // 2) Todo lo que empieza en b o después se desplaza exactamente (b - a) en todas las pistas:
+                    //    ninguna pista se desincroniza, cubra el silencio entera, en parte o nada
+                    var shifted = 0;
+                    try {
+                        for (i2 = 0; i2 < tracks.length; i2++) {
+                            if (isLocked(tracks[i2].t)) continue;
+                            for (j2 = 0; j2 < tracks[i2].t.clips.numItems; j2++) {
+                                c = tracks[i2].t.clips[j2];
+                                if (secs(c.start) >= b - EPS) { c.move(mkTime(-(b - a))); shifted++; }
                             }
                         }
+                    } catch (eMove) {
+                        if (shifted === 0) { useMove = false; warnings.push('Esta versión de Premiere no permite mover clips por script; se usa el borrado con rizo por pista.'); }
+                        else { warnings.push('Error al desplazar clips en ' + a.toFixed(2) + ' s: revisa la sincronía.'); }
+                    }
+                    if (useMove) { done++; continue; }
+                }
+                // Alternativa (sin TrackItem.move): borrado con rizo pieza a pieza
+                for (i2 = 0; i2 < tracks.length; i2++) {
+                    if (isLocked(tracks[i2].t)) continue;
+                    for (j2 = tracks[i2].t.clips.numItems - 1; j2 >= 0; j2--) {
+                        c = tracks[i2].t.clips[j2];
+                        if (secs(c.start) >= a - EPS && secs(c.end) <= b + EPS) { c.remove(true, true); removed++; }
                     }
                 }
                 done++;

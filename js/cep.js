@@ -108,25 +108,34 @@
   }
 
   /** Extrae el audio a WAV mono 16 kHz con ffmpeg (si está instalado). */
-  function ffmpegToWav(src, dest) {
+  function ffmpegToWav(src, dest, bin) {
     return new Promise((resolve, reject) => {
       if (!nodeRequire) { reject(new Error('Node.js no disponible')); return; }
       const cp = nodeRequire('child_process');
-      cp.execFile('ffmpeg', ['-y', '-v', 'error', '-i', src, '-vn', '-ac', '1', '-ar', '16000', '-f', 'wav', dest],
+      cp.execFile(bin || 'ffmpeg', ['-y', '-v', 'error', '-i', src, '-vn', '-ac', '1', '-ar', '16000', '-f', 'wav', dest],
         { maxBuffer: 1 << 24 }, err => (err ? reject(new Error('ffmpeg no disponible o falló: ' + err.message)) : resolve(dest)));
     });
   }
 
   /** Versión de ffmpeg instalada o null. */
-  function ffmpegVersion() {
+  function ffmpegVersion(bin) {
     return new Promise(resolve => {
       if (!nodeRequire) { resolve(null); return; }
       try {
-        nodeRequire('child_process').execFile('ffmpeg', ['-version'], { timeout: 5000 }, (err, out) => {
+        nodeRequire('child_process').execFile(bin || 'ffmpeg', ['-version'], { timeout: 5000 }, (err, out) => {
           resolve(err ? null : String(out).split('\n')[0]);
         });
       } catch (e) { resolve(null); }
     });
+  }
+
+  /** Nombres de archivo de una carpeta ([] si no existe). */
+  function list(dir) {
+    try {
+      if (nodeFs) return nodeFs.readdirSync(dir);
+      const r = cepFs.readdir(dir);
+      return r && r.err === 0 ? r.data : [];
+    } catch (e) { return []; }
   }
 
   function size(path) {
@@ -188,7 +197,7 @@
     available: !!host,
     canWrite: !!(nodeFs || cepFs),
     evalScript, call, systemPath, extensionPath,
-    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, waitStable, size, remove, ffmpegToWav, ffmpegVersion },
+    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, waitStable, size, remove, list, ffmpegToWav, ffmpegVersion },
     hasNode: !!nodeFs,
     pickFolder, openFolder, registerKeys
   };

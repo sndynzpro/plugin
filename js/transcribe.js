@@ -81,13 +81,15 @@
     const out = [];
     let a = 0;
     while (duration - a > maxSec) {
-      const target = a + maxSec;
+      const target = a + maxSec, lo = a + maxSec * 0.6;
       let cut = target;
-      const cands = (silences || []).filter(r => r.end > a + maxSec * 0.6 && r.start < target);
-      if (cands.length) {
-        const best = cands.reduce((m, r) => (Math.abs((r.start + r.end) / 2 - target) < Math.abs((m.start + m.end) / 2 - target) ? r : m));
-        cut = Math.min(target, (best.start + best.end) / 2);
-      }
+      // Punto de corte dentro de [lo, target]: el silencio más cercano al límite.
+      // Siempre cut ≥ lo > a, así que el bucle avanza aunque haya un silencio enorme.
+      (silences || []).forEach(r => {
+        if (r.end <= lo || r.start >= target) return;
+        const p = Math.min(target, Math.max(lo, (r.start + r.end) / 2));
+        if (cut === target || Math.abs(p - target) < Math.abs(cut - target)) cut = p;
+      });
       out.push({ start: a, end: cut });
       a = cut;
     }
@@ -399,13 +401,28 @@
         }
         if (res.statusCode !== 200) { res.resume(); reject(new Error('Descarga fallida (' + res.statusCode + ')')); return; }
         const total = +res.headers['content-length'] || 0;
-        let got = 0;
+        let got = 0, failed = false;
         const out = fs.createWriteStream(part);
+        const abort = err => {
+          if (failed) return;
+          failed = true;
+          out.destroy();
+          try { fs.unlinkSync(part); } catch (e) { /* no existe */ }
+          reject(err);
+        };
         res.on('data', d => { got += d.length; if (onProgress && total) onProgress(got / total); });
+        res.on('error', abort);
+        res.on('aborted', () => abort(new Error('La descarga se interrumpió')));
         res.pipe(out);
-        out.on('finish', () => out.close(() => { fs.renameSync(part, dest); resolve(dest); }));
-        out.on('error', reject);
-      }).on('error', reject);
+        out.on('finish', () => out.close(() => {
+          if (failed) return;
+          // Un modelo truncado no se guarda nunca como válido
+          if (total && got !== total) { abort(new Error(`Descarga incompleta (${got} de ${total} bytes)`)); return; }
+          fs.renameSync(part, dest);
+          resolve(dest);
+        }));
+        out.on('error', abort);
+      }).on('error', err => reject(err));
       get(modelUrl(id), 0);
     });
   }

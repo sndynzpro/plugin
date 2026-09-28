@@ -86,6 +86,9 @@
     const exists = CEP.fs.exists || (() => false);
 
     CEP.fs.mkdirp(outDir);
+    // Caché por contenido: [índice]_[tc]_[hash] → se busca por «tc_hash», da igual la posición del bloque
+    const prior = new Map();
+    (CEP.fs.list ? CEP.fs.list(outDir) : []).forEach(n => { const m = /^\d{4}_(.+)$/.exec(n); if (m) prior.set(m[1], n); });
     for (let i = 0; i < plan.length; i++) {
       const { ch, style, layer, f0, n, still, t: tStill, seg } = plan[i];
       const tc = SRT.toTC(f0 / fps, fps).replace(/:/g, '-');
@@ -93,8 +96,10 @@
       const label = ch.words.map(w => w.ref.text).join(' ');
       const name = `${opts.namePrefix || 'SE· '}${layer ? 'L' + (layer + 1) + ' ' : ''}${pad(i + 1, 3)} · ${label.slice(0, 40)}`;
 
+      const key = base.replace(/^\d{4}_/, '');
       if (still) {
-        const path = `${outDir}/${base}.png`;
+        const reuse = prior.get(key + '.png');
+        const path = `${outDir}/${reuse || base + '.png'}`;
         if (exists(path)) cached++;
         else {
           if (opts.isCancelled && opts.isCancelled()) throw new Error('CANCELLED');
@@ -109,9 +114,10 @@
         continue;
       }
 
-      const dir = `${outDir}/${base}`;
-      const first = `${dir}/${base}_${pad(0, 5)}.png`;
-      const last = `${dir}/${base}_${pad(n - 1, 5)}.png`;
+      const seqBase = prior.get(key) || base;
+      const dir = `${outDir}/${seqBase}`;
+      const first = `${dir}/${seqBase}_${pad(0, 5)}.png`;
+      const last = `${dir}/${seqBase}_${pad(n - 1, 5)}.png`;
       if (exists(first) && exists(last)) {
         cached++;
         done += n;
@@ -133,7 +139,7 @@
           }
           prevKey = key;
           prevData = data;
-          CEP.fs.writeFile(`${dir}/${base}_${pad(f, 5)}.png`, data);
+          CEP.fs.writeFile(`${dir}/${seqBase}_${pad(f, 5)}.png`, data);
           done++;
           if (done % 6 === 0) {
             opts.onProgress && opts.onProgress(done, total, label);
