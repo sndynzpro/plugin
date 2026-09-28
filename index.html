@@ -30,6 +30,10 @@
       <button class="btn ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)">
         <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg>
       </button>
+      <button class="btn" id="btnNew" title="Empezar un proyecto nuevo desde cero">
+        <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>
+        <span>Nuevo proyecto</span>
+      </button>
       <button class="btn" id="btnLoad">
         <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
         <span>Cargar .srt</span>
@@ -74,7 +78,10 @@
     <section class="card subs-card">
       <div class="card-head">
         <h2>Subtítulos</h2>
-        <span class="sel-count" id="selCount">0 seleccionadas</span>
+        <div class="head-right">
+          <button class="link-btn" id="btnClearFx" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar todos los efectos</button>
+          <span class="sel-count" id="selCount">0 seleccionadas</span>
+        </div>
       </div>
       <div class="subs-tools">
         <div class="search">
@@ -95,7 +102,12 @@
       <div class="cue-list" id="cueList"></div>
       <div class="empty" id="emptyState" hidden>
         <div class="empty-icon">SRT</div>
-        <p>Arrastra aquí un archivo <b>.srt</b> o pulsa <b>Cargar .srt</b></p>
+        <h3>Proyecto nuevo</h3>
+        <p>Arrastra aquí un archivo <b>.srt</b> o cárgalo desde tu equipo</p>
+        <div class="empty-actions">
+          <button class="btn primary" id="btnEmptyLoad">Cargar .srt</button>
+          <button class="btn" id="btnSample">Probar con un ejemplo</button>
+        </div>
       </div>
     </section>
   </main>
@@ -243,6 +255,22 @@
       <p class="note">Cada subtítulo se renderiza como una secuencia PNG con transparencia y se coloca en la pista elegida, sincronizado con los tiempos del .srt. Los fotogramas idénticos se reutilizan para acelerar el proceso.</p>
     </div>
   </aside>
+</div>
+
+<div class="modal" id="newModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <h3 id="newTitle">Empezar un proyecto nuevo</h3>
+    <p class="modal-sub">Elige qué quieres borrar. Tus subtítulos se pueden recuperar con <kbd>Ctrl+Z</kbd>; los estilos no.</p>
+    <label class="check"><input type="checkbox" checked disabled><span><b>Subtítulos y efectos de palabras</b><small>Se vacía la lista para cargar un .srt nuevo</small></span></label>
+    <label class="check"><input type="checkbox" id="rsExport" checked><span><b>Ajustes de exportación</b><small>Resolución, fps, pista, desfase de sincronía y carpeta</small></span></label>
+    <label class="check"><input type="checkbox" id="rsStyle"><span><b>Volver al estilo por defecto</b><small>Selecciona «Hormozi» como estilo activo</small></span></label>
+    <label class="check"><input type="checkbox" id="rsPresets"><span><b>Restablecer los estilos incluidos</b><small>Deshace los cambios que hiciste a los 9 estilos de fábrica</small></span></label>
+    <label class="check danger"><input type="checkbox" id="rsCustom"><span><b>Eliminar mis estilos personalizados</b><small>Borra los estilos que duplicaste o importaste</small></span></label>
+    <div class="modal-actions">
+      <button class="btn" id="newCancel">Cancelar</button>
+      <button class="btn primary" id="newConfirm">Empezar de cero</button>
+    </div>
+  </div>
 </div>
 
 <div class="drop-overlay" id="dropOverlay"><div>Suelta tu archivo .srt</div></div>

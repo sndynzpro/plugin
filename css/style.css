@@ -394,3 +394,33 @@ details.sec .sec-body { padding: 2px 12px 6px; }
 .drop-overlay div { padding: 34px 50px; border-radius: 18px; border: 2px dashed var(--accent); font-size: 18px; font-weight: 700; }
 .dragging .drop-overlay { display: grid; }
 [hidden] { display: none !important; }
+
+/* ───────────── Proyecto nuevo ───────────── */
+.head-right { display: flex; align-items: center; gap: 10px; }
+.link-btn { background: none; border: 0; padding: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.link-btn:hover { color: #fca5a5; text-decoration: underline; }
+.empty h3 { margin: 0 0 4px; font-size: 15px; color: var(--text); }
+.empty p { margin: 0 0 14px; }
+.empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.modal {
+  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px;
+  background: rgba(8, 9, 12, .72); backdrop-filter: blur(3px); animation: fadein .15s ease-out;
+}
+@keyframes fadein { from { opacity: 0; } }
+.modal-card {
+  width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line-2); border-radius: 14px; padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+}
+.modal-card h3 { margin: 0; font-size: 16px; }
+.modal-sub { margin: 6px 0 14px; color: var(--muted); font-size: 12.5px; }
+.check {
+  display: flex; gap: 11px; align-items: flex-start; padding: 10px 12px; margin-bottom: 6px; border-radius: 10px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .015); cursor: pointer;
+}
+.check:hover { border-color: var(--line-2); }
+.check input { margin: 2px 0 0; accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+.check span { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.check small { color: var(--muted); font-size: 11.5px; }
+.check.danger input:checked + span b { color: #fca5a5; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

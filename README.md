@@ -20,6 +20,7 @@ Panel para Adobe Premiere Pro que convierte un archivo **.srt** en subtítulos c
   - Duplicar, renombrar, restablecer, eliminar, exportar e importar estilos (.json).
 - **Vista previa en tiempo real** con línea de tiempo, fondo transparente, oscuro, escena, croma o una imagen tuya.
 - **Deshacer y rehacer** (`Ctrl+Z` / `Ctrl+Shift+Z`) y **autoguardado** de la sesión.
+- **Nuevo proyecto**: vacía los subtítulos y efectos para empezar de cero y, si quieres, restablece los ajustes de exportación, vuelve al estilo por defecto, deshace los cambios a los estilos incluidos o borra tus estilos personalizados. También hay un botón para **quitar todos los efectos** sin perder el .srt.
 - **Exportación a Premiere**: renderiza cada bloque como una secuencia PNG con transparencia a la resolución y los fps de tu secuencia, y la coloca en la pista que elijas (o en una pista nueva), sincronizada con el .srt.
 
 ## Instalación

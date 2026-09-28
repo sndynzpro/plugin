@@ -1072,6 +1072,69 @@
     });
   }
 
+  // ───────────── Proyecto nuevo ─────────────
+  const DEFAULT_SETTINGS = JSON.stringify(S.settings);
+
+  function openNewProject() {
+    setPlaying(false);
+    $('#newModal').hidden = false;
+    $('#newConfirm').focus();
+  }
+  function closeNewProject() { $('#newModal').hidden = true; }
+
+  function resetProject() {
+    const opts = {
+      exportSettings: $('#rsExport').checked,
+      style: $('#rsStyle').checked,
+      presets: $('#rsPresets').checked,
+      custom: $('#rsCustom').checked
+    };
+    closeNewProject();
+
+    if (S.cues.length) snapshot();
+    S.cues = [];
+    S.selection.clear();
+    S.anchor = null;
+    S.time = 0;
+    $('#search').value = '';
+
+    if (opts.exportSettings) {
+      const bg = S.settings.bg;
+      S.settings = Object.assign(JSON.parse(DEFAULT_SETTINGS), { bg });
+      syncExportUI();
+    }
+    if (opts.presets) ST.PRESETS.forEach(p => { styles[p.id] = ST.make(p); });
+    if (opts.custom) Object.keys(styles).forEach(id => { if (styles[id].custom) delete styles[id]; });
+    if (opts.style || !styles[S.styleId]) S.styleId = 'hormozi';
+    if (opts.presets || opts.custom) saveStyles();
+
+    buildStyleGallery();
+    selectStyle(S.styleId);
+    onCuesReplaced();
+    fitStage();
+    toast('Proyecto nuevo listo. Carga tu .srt para empezar.', 'ok', 3200);
+  }
+
+  function clearAllEffects() {
+    const touched = S.cues.some(c => c.words.some(w => w.ovr && Object.keys(w.ovr).length));
+    if (!touched) { toast('No hay efectos que quitar'); return; }
+    snapshot();
+    S.cues.forEach(c => c.words.forEach(w => { w.ovr = {}; }));
+    onCuesReplaced();
+    toast('Efectos quitados de todas las palabras (Ctrl+Z para deshacer)', 'ok');
+  }
+
+  function bindProject() {
+    $('#btnNew').addEventListener('click', openNewProject);
+    $('#newCancel').addEventListener('click', closeNewProject);
+    $('#newConfirm').addEventListener('click', resetProject);
+    $('#newModal').addEventListener('click', e => { if (e.target.id === 'newModal') closeNewProject(); });
+    $('#newModal').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeNewProject(); } });
+    $('#btnClearFx').addEventListener('click', clearAllEffects);
+    $('#btnEmptyLoad').addEventListener('click', () => $('#fileSrt').click());
+    $('#btnSample').addEventListener('click', () => loadSrtText(SRT.SAMPLE, 'Ejemplo'));
+  }
+
   // ───────────── Exportar ─────────────
   let cancelExport = false, exporting = false;
 
@@ -1126,7 +1189,7 @@
     if (sel.selectedIndex < 0) sel.value = '-1';
   }
 
-  function bindExport() {
+  function syncExportUI() {
     const s = S.settings;
     $('#expFormat').value = s.format;
     $('#expFps').value = s.fps;
@@ -1136,22 +1199,28 @@
     off.value = s.offset;
     updateRangeFill(off);
     $('#expOffsetOut').textContent = s.offset + ' ms';
+    fillTracks();
+  }
 
-    $('#expFormat').addEventListener('change', e => { s.format = e.target.value; fitStage(); saveSession(); });
-    $('#expFps').addEventListener('change', e => { s.fps = e.target.value; saveSession(); });
-    $('#expTrack').addEventListener('change', e => { s.track = +e.target.value; saveSession(); });
-    $('#expStart').addEventListener('change', e => { s.startMode = e.target.value; saveSession(); });
-    $('#expDir').addEventListener('change', e => { s.outDir = e.target.value.trim(); saveSession(); });
+  function bindExport() {
+    syncExportUI();
+    const off = $('#expOffset');
+
+    $('#expFormat').addEventListener('change', e => { S.settings.format = e.target.value; fitStage(); saveSession(); });
+    $('#expFps').addEventListener('change', e => { S.settings.fps = e.target.value; saveSession(); });
+    $('#expTrack').addEventListener('change', e => { S.settings.track = +e.target.value; saveSession(); });
+    $('#expStart').addEventListener('change', e => { S.settings.startMode = e.target.value; saveSession(); });
+    $('#expDir').addEventListener('change', e => { S.settings.outDir = e.target.value.trim(); saveSession(); });
     off.addEventListener('input', () => {
-      s.offset = +off.value;
+      S.settings.offset = +off.value;
       updateRangeFill(off);
-      $('#expOffsetOut').textContent = s.offset + ' ms';
+      $('#expOffsetOut').textContent = S.settings.offset + ' ms';
       saveSession();
     });
     $('#btnDir').addEventListener('click', () => {
       if (!CEP.available) { toast('Disponible dentro de Premiere Pro', 'warn'); return; }
-      const dir = CEP.pickFolder('Carpeta de renderizado de SubFX', s.outDir || CEP.systemPath('myDocuments'));
-      if (dir) { s.outDir = dir; $('#expDir').value = dir; saveSession(); }
+      const dir = CEP.pickFolder('Carpeta de renderizado de SubFX', S.settings.outDir || CEP.systemPath('myDocuments'));
+      if (dir) { S.settings.outDir = dir; $('#expDir').value = dir; saveSession(); }
     });
     $('#btnExport').addEventListener('click', runExport);
     $('#btnExportTop').addEventListener('click', () => { switchTab('export'); runExport(); });
@@ -1248,6 +1317,7 @@
 
   function bindKeys() {
     document.addEventListener('keydown', e => {
+      if (!$('#newModal').hidden) return;
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.target.isContentEditable) return;
       const mod = e.ctrlKey || e.metaKey;
@@ -1282,6 +1352,7 @@
     bindTimeline();
     bindLoading();
     bindExport();
+    bindProject();
     bindKeys();
     refreshSelectionUI();
     fillTracks();
