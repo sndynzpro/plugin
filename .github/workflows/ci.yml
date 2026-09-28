@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: '17 6 * * *'   # revisión diaria (06:17 UTC)
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publicar una release con la versión de package.json'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -63,7 +68,11 @@ jobs:
             dist/*.zxp
             dist/build-info.json
       - name: Publicar release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.zxp dist/build-info.json --title "SubtitleEngine Pro $GITHUB_REF_NAME" --generate-notes
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" dist/*.zip dist/*.zxp dist/build-info.json \
+            --target "$GITHUB_SHA" --title "SubtitleEngine Pro $TAG" --generate-notes
