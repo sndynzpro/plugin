@@ -33,7 +33,7 @@ if (mode === 'uninstall') {
 }
 
 // PlayerDebugMode: permite cargar extensiones sin firmar
-for (const v of [9, 10, 11, 12, 13]) {
+for (const v of [9, 10, 11, 12, 13, 14, 15, 16]) {
   try {
     if (process.platform === 'win32') execFileSync('reg', ['add', `HKCU\\Software\\Adobe\\CSXS.${v}`, '/v', 'PlayerDebugMode', '/t', 'REG_SZ', '/d', '1', '/f'], { stdio: 'ignore' });
     else execFileSync('defaults', ['write', `com.adobe.CSXS.${v}`, 'PlayerDebugMode', '1'], { stdio: 'ignore' });

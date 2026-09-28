@@ -1,6 +1,6 @@
 {
   "name": "subtitleengine-pro",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Panel CEP para Premiere Pro: subtítulos PNG-32, Auto-Zoom y eliminación de silencios.",
   "scripts": {
@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "playwright": "^1.55.0",
-    "zxp-provider": "^2.0.0"
+    "zxp-provider": "^2.0.1"
   }
 }
