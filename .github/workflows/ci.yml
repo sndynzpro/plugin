@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  schedule:
+    - cron: '17 6 * * *'   # revisión diaria (06:17 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Comprobaciones y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Comprobaciones estáticas (manifiesto, ES3, scripts)
+        run: npm run check
+      - name: Tests unitarios
+        run: npm test
+      - name: Navegador para las pruebas de interfaz
+        run: npx playwright install --with-deps chromium
+      - name: Pruebas de interfaz
+        run: npm run test:ui
+      - name: Capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: test-results/
+
+  package:
+    name: Paquete (.zip y .zxp firmado)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Firmar .zxp
+        env:
+          ZXP_CERT_BASE64: ${{ secrets.ZXP_CERT_BASE64 }}
+          ZXP_CERT_PASSWORD: ${{ secrets.ZXP_CERT_PASSWORD }}
+        run: npm run sign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SubtitleEngine-Pro
+          path: |
+            dist/*.zip
+            dist/*.zxp
+            dist/build-info.json
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.zxp dist/build-info.json --title "SubtitleEngine Pro $GITHUB_REF_NAME" --generate-notes

@@ -117,6 +117,18 @@
     });
   }
 
+  /** Versión de ffmpeg instalada o null. */
+  function ffmpegVersion() {
+    return new Promise(resolve => {
+      if (!nodeRequire) { resolve(null); return; }
+      try {
+        nodeRequire('child_process').execFile('ffmpeg', ['-version'], { timeout: 5000 }, (err, out) => {
+          resolve(err ? null : String(out).split('\n')[0]);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
+
   /** Espera a que exista un archivo (p. ej. el fotograma que exporta Premiere). */
   async function waitFile(path, ms) {
     const t0 = Date.now();
@@ -156,7 +168,8 @@
     available: !!host,
     canWrite: !!(nodeFs || cepFs),
     evalScript, call, systemPath, extensionPath,
-    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, ffmpegToWav },
+    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, ffmpegToWav, ffmpegVersion },
+    hasNode: !!nodeFs,
     pickFolder, openFolder, registerKeys
   };
 })(window);

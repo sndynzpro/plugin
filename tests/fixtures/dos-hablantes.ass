@@ -1,0 +1,9 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:02.00,Default,Dylan,0,0,0,,{\i1}Cuidado con tu mejor empleado{\i0}
+Dialogue: 0,0:00:02.90,0:00:04.20,Default,Andrés,0,0,0,,que necesitas\Nretener hoy

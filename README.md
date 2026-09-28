@@ -24,6 +24,16 @@ La implementación sigue `SubtitleEngine_Pro_Plan_Arquitectura.pdf`.
 - **Virales**: Hormozi, Hormozi verde, Beast, Caja viral, Iman, Ali Abdaal, Devin, TikTok clásico, Pop 3D, Gaming.
 - **Social / Cine / Minimal**: Glass, Neón, Karaoke, Podcast 2 voces, Lujo, Cine, Minimal, Retro pop, Fuego.
 
+## Generar, instalar y probar
+
+```bash
+npm install && npm run test:all   # comprobaciones + tests unitarios + pruebas de interfaz
+npm run build                      # dist/SubtitleEngine-Pro-<versión>.zip con instaladores
+npm run sign                       # .zxp firmado (Windows o macOS)
+```
+
+Guía completa, lista de pruebas en Premiere y publicación de versiones: [docs/DEPLOY.md](docs/DEPLOY.md). Dentro del panel, **Render → Diagnóstico** comprueba Premiere, disco, audio y fuentes sin tocar el proyecto.
+
 ## Instalación
 
 Requiere Premiere Pro 2021 (v15) o posterior, en Windows o macOS.
@@ -66,6 +76,9 @@ js/cep.js             Puente con Premiere y sistema de archivos
 js/app.js             Lógica de la interfaz
 jsx/host.jsx          ExtendScript: secuencia, cabezal, importación, zoom y cortes
 install/              Instaladores para Windows y macOS
+scripts/              check, build, sign e instalación local
+tests/                Tests unitarios (node:test) y de interfaz (Playwright)
+.github/workflows/    CI: pruebas en cada push y cada día, release firmada con cada tag
 ```
 
 ## Depuración

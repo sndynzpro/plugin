@@ -14,8 +14,10 @@ if [ -d "$EXT/SubFX-Studio" ]; then
 fi
 
 echo "Copiando archivos a: $DEST"
+rm -rf "$DEST"
 mkdir -p "$DEST"
-rsync -a --delete --exclude ".git" --exclude "install" --exclude "docs" --exclude "node_modules" --exclude "*.zxp" --exclude "*.pdf" "$SRC/" "$DEST/"
+(cd "$SRC" && tar cf - --exclude ".git" --exclude "./install" --exclude "./docs" --exclude "./dist" --exclude "./tests" \
+  --exclude "./scripts" --exclude "./node_modules" --exclude "*.zxp" --exclude "*.pdf" .) | (cd "$DEST" && tar xf -)
 
 echo
 echo "Listo. Reinicia Premiere Pro y abre: Ventana > Extensiones > SubtitleEngine Pro"

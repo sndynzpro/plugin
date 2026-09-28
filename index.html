@@ -392,6 +392,11 @@
       </div>
       <div class="row-btns">
         <button class="btn small" id="btnFrame">Descargar fotograma PNG</button>
+        <button class="btn small" id="btnDiag" title="Comprueba Premiere, el disco, el audio y las fuentes sin tocar tu proyecto">Diagnóstico</button>
+      </div>
+      <div class="diag" id="diagBox" hidden>
+        <div class="diag-head"><b>Diagnóstico</b><span id="diagSummary"></span><button class="btn small" id="btnDiagCopy">Copiar informe</button></div>
+        <ul id="diagList"></ul>
       </div>
       <p class="note">Los bloques sin animación se exportan como un único PNG-32 transparente; los animados, como secuencia PNG. Cada archivo se nombra <code>[índice]_[timecode]_[hash].png</code> y se reutiliza si no cambió.</p>
     </div>

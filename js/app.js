@@ -2045,6 +2045,8 @@
     $('#btnExport').addEventListener('click', runExport);
     $('#btnExportTop').addEventListener('click', () => { switchTab('export'); runExport(); });
     $('#btnCancel').addEventListener('click', () => { cancelExport = true; });
+    $('#btnDiag').addEventListener('click', runDiagnostics);
+    $('#btnDiagCopy').addEventListener('click', copyDiagnostics);
     $('#btnFrame').addEventListener('click', () => {
       const { W, H } = frameSize();
       const cv = el('canvas');
@@ -2132,6 +2134,81 @@
       $('#btnExport').disabled = false;
       $('#btnExportTop').disabled = false;
     }
+  }
+
+  // ───────────── Diagnóstico ─────────────
+  let diagReport = '';
+  async function runDiagnostics() {
+    const box = $('#diagBox'), list = $('#diagList');
+    box.hidden = false;
+    list.innerHTML = '';
+    $('#diagSummary').textContent = 'Comprobando…';
+    const items = [];
+    const add = (name, state, detail) => {
+      items.push({ name, state, detail: detail || '' });
+      const li = el('li', state);
+      li.appendChild(el('i', null, state === 'ok' ? '✓' : state === 'warn' ? '!' : '✗'));
+      li.appendChild(el('span', null, name));
+      li.appendChild(el('small', null, detail || ''));
+      list.appendChild(li);
+    };
+
+    add('Panel', 'ok', `SubtitleEngine Pro · ${navigator.userAgent.match(/Chrome\/[\d.]+/) || 'navegador'}`);
+    if (!CEP.available) add('Conexión con Premiere', 'warn', 'Modo navegador: abre el panel desde Premiere para el diagnóstico completo.');
+    else {
+      try {
+        const r = await CEP.call('selfTest');
+        if (!r || !r.ok) throw new Error((r && r.error) || 'sin respuesta');
+        r.checks.forEach(c => add(c.name, c.ok ? 'ok' : 'bad', c.detail));
+      } catch (err) { add('Conexión con Premiere', 'bad', err.message); }
+    }
+
+    // Disco
+    if (!CEP.available) add('Acceso al disco', 'warn', 'Solo dentro de Premiere');
+    else if (!CEP.canWrite) add('Acceso al disco', 'bad', 'Sin Node.js ni cep.fs: revisa CEFCommandLine en el manifiesto');
+    else {
+      try {
+        const dir = (S.settings.outDir || (CEP.systemPath('myDocuments') + '/SubtitleEngine Renders')).replace(/\/+$/, '');
+        CEP.fs.mkdirp(dir);
+        const f = dir + '/.subtitleengine-test';
+        CEP.fs.writeFile(f, 'b2s=');
+        if (!CEP.fs.exists(f)) throw new Error('no se pudo leer lo escrito');
+        add('Carpeta de render', 'ok', dir);
+      } catch (err) { add('Carpeta de render', 'bad', err.message); }
+      add('Node.js en el panel', CEP.hasNode ? 'ok' : 'warn', CEP.hasNode ? 'Disponible (lectura de audio y ffmpeg)' : 'No disponible: el análisis de silencios de la pista no funcionará');
+    }
+
+    // Audio y ffmpeg
+    add('Decodificador de audio', (window.AudioContext || window.webkitAudioContext) ? 'ok' : 'bad', 'Web Audio');
+    if (CEP.available) {
+      const v = await CEP.fs.ffmpegVersion();
+      add('ffmpeg (respaldo para códecs)', v ? 'ok' : 'warn', v || 'No instalado. Solo hace falta si el panel no puede leer el audio de tus clips.');
+    }
+
+    // Fuentes de los presets usados
+    const fonts = Array.from(new Set(S.layers.map((l, i) => layerStyle(i).font)));
+    await Promise.all(fonts.map(f => document.fonts.load(`700 40px "${f}"`).catch(() => null)));
+    fonts.forEach(f => {
+      const okFont = document.fonts.check(`700 40px "${f}"`);
+      add(`Fuente «${f}»`, okFont ? 'ok' : 'warn', okFont ? 'Cargada' : 'No encontrada: se usará otra. Instálala o comprueba la conexión a Google Fonts.');
+    });
+
+    const bad = items.filter(i => i.state === 'bad').length, warn = items.filter(i => i.state === 'warn').length;
+    $('#diagSummary').textContent = bad ? `${bad} error${bad > 1 ? 'es' : ''} · ${warn} aviso${warn === 1 ? '' : 's'}` : warn ? `Sin errores · ${warn} aviso${warn === 1 ? '' : 's'}` : 'Todo correcto';
+    diagReport = [`SubtitleEngine Pro · diagnóstico ${new Date().toISOString()}`]
+      .concat(items.map(i => `[${i.state === 'ok' ? 'OK' : i.state === 'warn' ? 'AVISO' : 'ERROR'}] ${i.name}: ${i.detail}`)).join('\n');
+  }
+
+  function copyDiagnostics() {
+    const ta = el('textarea');
+    ta.value = diagReport;
+    document.body.appendChild(ta);
+    ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { /* sigue */ }
+    ta.remove();
+    if (!done && navigator.clipboard) navigator.clipboard.writeText(diagReport).then(() => toast('Informe copiado', 'ok'), () => toast('No se pudo copiar', 'err'));
+    else toast(done ? 'Informe copiado' : 'No se pudo copiar', done ? 'ok' : 'err');
   }
 
   // ───────────── Pestañas y teclado ─────────────

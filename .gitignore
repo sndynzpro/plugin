@@ -1,5 +1,8 @@
 node_modules/
 dist/
+certs/
+test-results/
 *.zxp
+*.p12
 .DS_Store
 Thumbs.db

@@ -1,0 +1,25 @@
+{
+  "name": "subtitleengine-pro",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Panel CEP para Premiere Pro: subtítulos PNG-32, Auto-Zoom y eliminación de silencios.",
+  "scripts": {
+    "check": "node scripts/check.js",
+    "test": "node scripts/run-tests.js",
+    "test:ui": "node tests/ui/smoke.js",
+    "test:all": "npm run check && npm test && npm run test:ui",
+    "build": "node scripts/build.js",
+    "sign": "node scripts/sign.js",
+    "release": "npm run check && npm test && npm run build && npm run sign",
+    "install:local": "node scripts/install-local.js",
+    "dev": "node scripts/install-local.js --link",
+    "uninstall:local": "node scripts/install-local.js --uninstall"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "zxp-provider": "^2.0.0"
+  }
+}

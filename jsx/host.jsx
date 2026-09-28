@@ -411,6 +411,60 @@ var SubFX = (function () {
         } catch (e) { return fail(e.toString()); }
     }
 
+    // ───────────── Diagnóstico (solo lectura) ─────────────
+    function selfTest() {
+        var checks = [];
+        function add(name, fn) {
+            try {
+                var d = fn();
+                checks.push({ name: name, ok: true, detail: d === undefined ? '' : String(d) });
+            } catch (e) {
+                checks.push({ name: name, ok: false, detail: e.message || e.toString() });
+            }
+        }
+        add('Premiere Pro', function () { return app.version + ' · ' + $.os; });
+        add('Proyecto abierto', function () {
+            if (!app.project || !app.project.rootItem) throw new Error('No hay un proyecto abierto.');
+            return app.project.name;
+        });
+        var seq = app.project ? app.project.activeSequence : null;
+        add('Secuencia activa', function () {
+            if (!seq) throw new Error('Abre una secuencia en la línea de tiempo.');
+            return seq.name + ' · ' + seq.frameSizeHorizontal + 'x' + seq.frameSizeVertical + ' · ' + (Math.round(seqFps(seq) * 1000) / 1000) + ' fps';
+        });
+        if (seq) {
+            add('Leer el cabezal', function () { return seq.getPlayerPosition().seconds.toFixed(3) + ' s'; });
+            add('Timecode de la secuencia', function () { return qeTC(seq, 1); });
+            add('API QE (cuchilla, pistas nuevas)', function () {
+                app.enableQE();
+                var q = qe.project.getActiveSequence();
+                if (!q) throw new Error('QE no devuelve la secuencia activa.');
+                return q.numVideoTracks + ' pistas de vídeo · ' + q.numAudioTracks + ' de audio';
+            });
+            add('Marcadores', function () { return seq.markers.numMarkers + ' en la secuencia'; });
+            add('Selección de clips', function () { return seq.getSelection().length + ' seleccionados'; });
+            add('Efecto Movimiento (primer clip de vídeo)', function () {
+                for (var t = 0; t < seq.videoTracks.numTracks; t++) {
+                    if (seq.videoTracks[t].clips.numItems) {
+                        var c = seq.videoTracks[t].clips[0];
+                        var m = motionOf(c);
+                        if (!m) throw new Error('El clip «' + c.name + '» no tiene Movimiento.');
+                        var pos = m.properties[0].getValue();
+                        return 'Escala ' + m.properties[1].getValue() + ' · Posición ' + (pos[0] <= 2 && pos[1] <= 2 ? 'normalizada' : 'en píxeles');
+                    }
+                }
+                return 'Sin clips de vídeo para comprobar';
+            });
+            add('Pistas bloqueadas', function () {
+                var n = 0, i;
+                for (i = 0; i < seq.videoTracks.numTracks; i++) if (isLocked(seq.videoTracks[i])) n++;
+                for (i = 0; i < seq.audioTracks.numTracks; i++) if (isLocked(seq.audioTracks[i])) n++;
+                return n ? n + ' bloqueadas: el corte de silencios no las toca' : 'Ninguna';
+            });
+        }
+        return toJSON({ ok: true, checks: checks });
+    }
+
     return {
         ping: function () { return toJSON({ ok: true, version: app.version }); },
         getSequenceInfo: getSequenceInfo,
@@ -421,6 +475,7 @@ var SubFX = (function () {
         getVideoClips: getVideoClips,
         getAudioClips: getAudioClips,
         applyZoom: applyZoom,
-        cutRanges: cutRanges
+        cutRanges: cutRanges,
+        selfTest: selfTest
     };
 })();

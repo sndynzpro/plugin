@@ -21,7 +21,7 @@ if exist "%EXT%\SubFX-Studio" (
 echo  Copiando archivos a:
 echo  %DEST%
 if exist "%DEST%" rmdir /s /q "%DEST%"
-robocopy "%SRC%" "%DEST%" /E /XD .git install docs node_modules /XF *.zxp *.pdf /NFL /NDL /NJH /NJS >nul
+robocopy "%SRC%" "%DEST%" /E /XD .git install docs dist tests scripts node_modules .github /XF *.zxp *.pdf /NFL /NDL /NJH /NJS >nul
 if %ERRORLEVEL% GEQ 8 (
   echo  ERROR: no se pudieron copiar los archivos.
   pause
