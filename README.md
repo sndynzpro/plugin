@@ -1,54 +1,53 @@
-# SubFX Studio · Subtítulos animados para Premiere Pro
+# SubtitleEngine Pro · Subtítulos de alta fidelidad para Premiere Pro
 
-Panel para Adobe Premiere Pro que convierte un archivo **.srt** en subtítulos con estilo y **efectos por palabra**. Eliges las palabras que quieres destacar, les aplicas un efecto del banco, cambias los colores a tu gusto y lo envías directamente a la línea de tiempo.
+Panel CEP para Adobe Premiere Pro que convierte un **.srt / .ass** en subtítulos renderizados como **PNG-32 transparentes** (Canvas 2D → PNG) y los coloca sincronizados en la timeline. Incluye los presets del Playbook **30X Media**, un paquete de presets virales, **Auto-Zoom** paramétrico y **eliminación de silencios**.
 
-## Funciones
+La implementación sigue `SubtitleEngine_Pro_Plan_Arquitectura.pdf`.
 
-- **Carga de .srt / .vtt**: con el botón o arrastrando el archivo al panel.
-- **Selección por palabras**: haz clic en cada palabra para seleccionarla, `Shift` + clic para un rango, o usa la selección rápida (Todas, Invertir, Iguales, Números, Palabras largas, Con efecto, buscador).
-- **Banco de 28 efectos** con vista previa animada:
-  - *Entrada*: Pop, Rebote, Zoom, Deslizar, Caída, Fundido, Desenfoque, Giro, Máquina de escribir, Elástico, Voltear.
-  - *Énfasis*: Golpe, Temblor, Salto, Destello, Colorear, Girar 360, Latido, Marcador, Subrayado.
-  - *Continuo*: Neón, Arcoíris, Ola, Bamboleo, Pulso, Nervioso, Glitch, Flotar.
-- **Ajustes por palabra**: color del texto, color del efecto, tamaño, intensidad y velocidad.
-- **9 estilos incluidos** (Hormozi, Beast, Caja viral, Neón, Karaoke, Minimal, Retro pop, Fuego y Cine). Todos se pueden modificar:
-  - Tipografía: fuente (cualquiera instalada), grosor, mayúsculas, tamaño, espaciado e interlineado.
-  - Color sólido o degradado, contorno, sombra y resplandor.
-  - Resaltado tipo karaoke de la palabra que se está diciendo, con color, escala y caja de fondo.
-  - Fondo por bloque o por línea, posición, ancho máximo y palabras por bloque.
-  - Animación de entrada o salida del bloque y un efecto aplicado a todas las palabras.
-  - Duplicar, renombrar, restablecer, eliminar, exportar e importar estilos (.json).
-- **Vista previa en tiempo real** con línea de tiempo, fondo transparente, oscuro, escena, croma o una imagen tuya.
-- **Deshacer y rehacer** (`Ctrl+Z` / `Ctrl+Shift+Z`) y **autoguardado** de la sesión.
-- **Nuevo proyecto**: vacía los subtítulos y efectos para empezar de cero y, si quieres, restablece los ajustes de exportación, vuelve al estilo por defecto, deshace los cambios a los estilos incluidos o borra tus estilos personalizados. También hay un botón para **quitar todos los efectos** sin perder el .srt.
-- **Exportación a Premiere**: renderiza cada bloque como una secuencia PNG con transparencia a la resolución y los fps de tu secuencia, y la coloca en la pista que elijas (o en una pista nueva), sincronizada con el .srt.
+## Módulos
+
+| Módulo | Qué hace |
+| --- | --- |
+| **01 · SRT Engine** | Importa `.srt`, `.vtt`, `.ass` y `.ssa` (parser tolerante, milisegundos, hablantes `NOMBRE:`, `[Nombre]`, `<v Nombre>` o campo *Name* de ASS). Exporta `.srt` y `.ass` con estilos. Timecodes `HH:MM:SS:FF` según los fps de la secuencia (24, 25, 29.97, 30, 59.94, 60…). |
+| **02 · Editor y timeline** | Lista editable: timecodes de entrada/salida, texto completo o palabra a palabra (doble clic), agregar y eliminar líneas, buscar y reemplazar. Mini-timeline con bloques que se arrastran y se recortan por los bordes. **Sync TC**: cabezal sincronizado con Premiere en ambos sentidos. |
+| **03 · Style Engine** | Menús abatibles con memoria: tipografía (peso 100-900, casing, kerning, line height, alineación), color sólido o gradiente lineal/radial con ángulo, opacidad, **3 capas de contorno** (outside / inside / centered, round / bevel / miter), **3 sombras** (ángulo, distancia, blur, opacidad, color), resplandor, fondos por frase / línea / palabra con **glassmorphism**, márgenes de seguridad y animaciones (Pop, Fade, Bounce, Typewriter, Glitch, Slide, Zoom). |
+| **03B · Líneas paralelas** | Hasta 4 capas simultáneas, cada una con su propio preset (p. ej. Speaker 1 blanco, Speaker 2 amarillo). Cada capa va a su propia pista de vídeo. |
+| **04 · Preview en vivo** | Canvas a la resolución de la secuencia (9:16, 16:9, 1:1, 4:5, 4K), guías de zona segura y **captura del fotograma actual de Premiere** como fondo. |
+| **05 · Preset Manager** | Galería por categorías (Virales, 30X Media, Social, Cine, Minimal, Míos), guardar como nuevo preset, aplicar a subtítulos seleccionados, importar/exportar JSON. |
+| **06 · Auto-Zoom** | Keyframes de Escala (y Posición según el punto focal) en el efecto Movimiento: zoom base y máximo, dirección, curva (Smooth, Linear, Exponential snappy), 6-15 fotogramas de transición, disparadores por corte, silencio o intervalo, punto focal centrado / tercio superior / personalizado. |
+| **07 · Silence Remover** | Umbral -50 a -25 dB, pausa mínima 0.25-0.8 s, padding in/out. Acciones: ripple delete, acortar pausas a 0.15 s o solo marcadores. Opcionalmente reajusta los subtítulos ya cargados. |
+| **08 · PNG Renderer** | Bloques sin animación → **un único PNG**; bloques animados → secuencia PNG. Nombres `[índice]_[timecode]_[hash].png`; si el hash ya existe en la carpeta no se vuelve a renderizar. Todo se importa en una bandeja del proyecto y se coloca en una pista «SubtitleEngine». |
+
+### Presets incluidos
+
+- **30X Media** (Playbook): *30X Default* (Inter Bold, `#F6F5F0`, minúsculas, centrado, sombra negra 65 %, palabra clave `#FAFF96`, márgenes 250 / 380 px en 1080×1920), *30X Hook* (MAYÚSCULAS, alineado a la izquierda), *30X Speaker 2* (amarillo, para clips bicolor) y *30X Portada*.
+- **Virales**: Hormozi, Hormozi verde, Beast, Caja viral, Iman, Ali Abdaal, Devin, TikTok clásico, Pop 3D, Gaming.
+- **Social / Cine / Minimal**: Glass, Neón, Karaoke, Podcast 2 voces, Lujo, Cine, Minimal, Retro pop, Fuego.
 
 ## Instalación
 
 Requiere Premiere Pro 2021 (v15) o posterior, en Windows o macOS.
 
-### Windows
-1. Descarga o clona esta carpeta.
-2. Ejecuta `install/instalar-windows.bat` (doble clic).
-3. Reinicia Premiere Pro y abre **Ventana → Extensiones → SubFX Studio**.
+- **Windows**: ejecuta `install/instalar-windows.bat`.
+- **macOS**: `bash install/instalar-mac.sh`.
 
-### macOS
-1. Descarga o clona esta carpeta.
-2. En Terminal: `bash install/instalar-mac.sh`
-3. Reinicia Premiere Pro y abre **Ventana → Extensiones → SubFX Studio**.
+Reinicia Premiere Pro y abre **Ventana → Extensiones → SubtitleEngine Pro**. El instalador activa `PlayerDebugMode` (extensiones sin firmar) y, si existe, retira la versión anterior *SubFX Studio*. Para distribuirlo sin ese paso, empaquétalo como `.zxp` firmado con [ZXPSignCmd](https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD).
 
-El instalador activa `PlayerDebugMode` para que Premiere cargue extensiones sin firmar y copia el panel a la carpeta de extensiones CEP de tu usuario. Para distribuirlo sin ese paso, empaquétalo como `.zxp` firmado con [ZXPSignCmd](https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD).
+## Flujo de trabajo
 
-## Cómo se usa
+1. **Crudo y limpieza**: *Herramientas → Eliminación de silencios*. Pulsa **Analizar**: los silencios aparecen en rojo sobre la mini-timeline. Luego **Ripple Cut**.
+2. **Ingesta**: importa el `.srt` de Whisper / Premiere Transcribe o crea líneas con **+ Agregar línea**.
+3. **Estilo**: elige *30X Default* (o un preset viral), pulsa **Palabra clave auto** para destacar la palabra de mayor impacto de cada frase y ajusta lo que quieras.
+4. **Ritmo**: selecciona clips en Premiere y aplica **Auto-Zoom**. La gráfica muestra la curva antes de aplicarla.
+5. **Render a Timeline**: genera los PNG y los coloca sincronizados.
 
-1. **Carga tu .srt** (en `assets/ejemplo.srt` hay uno de prueba).
-2. **Elige un estilo** en la pestaña *Estilos* y ajústalo como quieras.
-3. **Selecciona palabras** en la lista de subtítulos y haz clic en un efecto de la pestaña *Efectos*. Cámbiales el color, el tamaño o la intensidad.
-4. En *Exportar*, elige la pista y pulsa **Renderizar e insertar en Premiere**.
+> El `.srt` solo trae el tiempo de cada subtítulo, no de cada palabra: el karaoke reparte el tiempo según la longitud de cada palabra. Si notas desfase, usa **Desfase de sincronía** en *Render*.
 
-> Consejo: el `.srt` solo trae el tiempo de cada subtítulo, no el de cada palabra. SubFX reparte el tiempo entre las palabras según su longitud. Si notas desfase, usa **Desfase de sincronía** en la pestaña Exportar.
+### Notas
 
-Las secuencias PNG se guardan en `Documentos/SubFX Renders/<fecha>` (se puede cambiar) y se importan en una bandeja `SubFX <fecha>` del proyecto.
+- La **decodificación de audio** usa el decodificador del panel. Si el códec del clip no es compatible, se usa `ffmpeg` cuando está instalado en el sistema. También puedes analizar un archivo de audio de tu equipo con **Analizar archivo…**.
+- El **ripple delete** corta en todas las pistas desbloqueadas y desplaza también las pistas que no tenían contenido en el silencio, para no desincronizarlas. Se deshace con `Ctrl+Z` en Premiere.
+- El efecto **glass** se simula (tinte, borde y brillo) porque un PNG transparente no puede desenfocar el vídeo que tiene detrás.
 
 ## Estructura
 
@@ -56,34 +55,19 @@ Las secuencias PNG se guardan en `Documentos/SubFX Renders/<fecha>` (se puede ca
 CSXS/manifest.xml     Manifiesto de la extensión CEP
 index.html            Interfaz del panel
 css/style.css         Diseño
-js/effects.js         Banco de efectos por palabra
-js/styles.js          Estilos incluidos y valores base
-js/srt.js             Lector de .srt / .vtt
-js/renderer.js        Motor de render (vista previa y exportación)
-js/exporter.js        Render de secuencias PNG
+js/srt.js             01 · Lectura/escritura .srt/.vtt/.ass y timecodes
+js/styles.js          03/05 · Parámetros de estilo y presets
+js/effects.js         Banco de 28 efectos por palabra
+js/renderer.js        03/03B · Motor Canvas 2D (vista previa y render)
+js/exporter.js        08 · Pipeline PNG-32
+js/audio.js           07 · Detección de silencios
+js/zoom.js            06 · Plan de keyframes del Auto-Zoom
 js/cep.js             Puente con Premiere y sistema de archivos
 js/app.js             Lógica de la interfaz
-jsx/host.jsx          ExtendScript: lee la secuencia, importa y coloca los clips
+jsx/host.jsx          ExtendScript: secuencia, cabezal, importación, zoom y cortes
 install/              Instaladores para Windows y macOS
 ```
 
-### Añadir un efecto propio
-Agrega un objeto a `LIST` en `js/effects.js`:
-
-```js
-{
-  id: 'miEfecto', name: 'Mi efecto', cat: 'hit', dur: 0.4, color: '#FFE600',
-  desc: 'Descripción corta',
-  apply(T, t, k, color) {
-    // t = segundos desde que se dice la palabra, k = intensidad
-    const s = 1 + 0.3 * k * Math.sin(Math.PI * Math.min(1, Math.max(0, t / this.dur)));
-    T.sx *= s; T.sy *= s;
-  }
-}
-```
-
-Aparecerá automáticamente en el banco de efectos.
-
 ## Depuración
 
-Con la extensión instalada, abre `http://localhost:8098` en Chrome para ver la consola del panel (el puerto se configura en `.debug`). También puedes abrir `index.html` en un navegador: todo el editor funciona en *modo navegador*, salvo la exportación a Premiere.
+Con la extensión instalada, abre `http://localhost:8098` en Chrome para ver la consola del panel. También puedes abrir `index.html` en un navegador: el editor, los estilos, la vista previa y el análisis de silencios de un archivo local funcionan en *modo navegador*; lo que toca la timeline necesita Premiere.

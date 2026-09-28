@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.subfx.studio" ExtensionBundleVersion="1.0.0"
-  ExtensionBundleName="SubFX Studio" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.subtitleengine.pro" ExtensionBundleVersion="2.0.0"
+  ExtensionBundleName="SubtitleEngine Pro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.subfx.studio.panel" Version="1.0.0" />
+    <Extension Id="com.subtitleengine.pro.panel" Version="2.0.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -17,7 +17,7 @@
     </RequiredRuntimeList>
   </ExecutionEnvironment>
   <DispatchInfoList>
-    <Extension Id="com.subfx.studio.panel">
+    <Extension Id="com.subtitleengine.pro.panel">
       <DispatchInfo>
         <Resources>
           <MainPath>./index.html</MainPath>
@@ -33,9 +33,9 @@
         </Lifecycle>
         <UI>
           <Type>Panel</Type>
-          <Menu>SubFX Studio</Menu>
+          <Menu>SubtitleEngine Pro</Menu>
           <Geometry>
-            <Size><Height>820</Height><Width>1180</Width></Size>
+            <Size><Height>860</Height><Width>1280</Width></Size>
             <MinSize><Height>480</Height><Width>380</Width></MinSize>
             <MaxSize><Height>3000</Height><Width>4000</Width></MaxSize>
           </Geometry>

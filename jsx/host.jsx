@@ -1,6 +1,7 @@
 /*
- * SubFX Studio — Script de host para Premiere Pro (ExtendScript, ES3).
- * Lee la secuencia activa e importa/coloca las secuencias PNG renderizadas.
+ * SubtitleEngine Pro — Script de host para Premiere Pro (ExtendScript, ES3).
+ * Timeline API: secuencia activa, cabezal, captura de fotograma, importación
+ * de PNG, Auto-Zoom (keyframes de Movimiento) y eliminación de silencios.
  */
 /* global app, qe, $, Time */
 var SubFX = (function () {
@@ -30,37 +31,82 @@ var SubFX = (function () {
     function fail(msg) { return toJSON({ ok: false, error: msg }); }
 
     var TICKS = 254016000000;
+    var EPS = 0.002;
     var isWin = $.os.indexOf('Windows') !== -1;
 
     function nativePath(p) { return isWin ? p.replace(/\//g, '\\') : p; }
     function normPath(p) { return String(p || '').replace(/\\/g, '/').toLowerCase(); }
+    function mkTime(sec) { var t = new Time(); t.seconds = sec; return t; }
+    function secs(t) { return t ? Number(t.seconds) : 0; }
 
+    function activeSeq() {
+        var seq = app.project.activeSequence;
+        if (!seq) throw new Error('No hay una secuencia activa. Abre una secuencia en la línea de tiempo.');
+        return seq;
+    }
+
+    function seqFps(seq) {
+        try { return TICKS / Number(seq.timebase); } catch (e) { return 30; }
+    }
+
+    /** Timecode en el formato de visualización de la secuencia (lo que espera QE). */
+    function qeTC(seq, sec) {
+        var st = seq.getSettings();
+        return mkTime(sec).getFormatted(st.videoFrameRate, st.videoDisplayFormat);
+    }
+
+    // ───────────── Secuencia y cabezal ─────────────
     function getSequenceInfo() {
         try {
             var seq = app.project.activeSequence;
             if (!seq) return fail('No hay una secuencia activa. Abre una secuencia en la línea de tiempo.');
-            var fps = 0;
-            try { fps = TICKS / Number(seq.timebase); } catch (e1) {}
+            var fps = seqFps(seq);
             var w = 0, h = 0;
             try { w = seq.frameSizeHorizontal; h = seq.frameSizeVertical; } catch (e2) {}
             if (!w || !h) {
                 try { var st = seq.getSettings(); w = st.videoFrameWidth; h = st.videoFrameHeight; } catch (e3) {}
             }
-            var tracks = [];
-            for (var i = 0; i < seq.videoTracks.numTracks; i++) {
+            var tracks = [], atracks = [], i;
+            for (i = 0; i < seq.videoTracks.numTracks; i++) {
                 tracks.push({ index: i, name: seq.videoTracks[i].name || ('V' + (i + 1)), clips: seq.videoTracks[i].clips.numItems });
+            }
+            for (i = 0; i < seq.audioTracks.numTracks; i++) {
+                atracks.push({ index: i, name: seq.audioTracks[i].name || ('A' + (i + 1)), clips: seq.audioTracks[i].clips.numItems });
             }
             var playhead = 0;
             try { playhead = seq.getPlayerPosition().seconds; } catch (e4) {}
             return toJSON({
                 ok: true, name: seq.name, width: w, height: h,
-                fps: Math.round(fps * 1000) / 1000, playhead: playhead, tracks: tracks
+                fps: Math.round(fps * 1000) / 1000, playhead: playhead, tracks: tracks, audioTracks: atracks
             });
         } catch (e) {
             return fail(e.toString());
         }
     }
 
+    function getPlayhead() {
+        try { return toJSON({ ok: true, t: activeSeq().getPlayerPosition().seconds }); } catch (e) { return fail(e.toString()); }
+    }
+
+    function setPlayhead(sec) {
+        try {
+            activeSeq().setPlayerPosition(String(Math.round(Number(sec) * TICKS)));
+            return toJSON({ ok: true });
+        } catch (e) { return fail(e.toString()); }
+    }
+
+    /** Exporta el fotograma bajo el cabezal a un PNG (para la vista previa). */
+    function exportFrame(path) {
+        try {
+            var seq = activeSeq();
+            app.enableQE();
+            var t = seq.getPlayerPosition().seconds;
+            qe.project.getActiveSequence().exportFramePNG(qeTC(seq, t), nativePath(path));
+            return toJSON({ ok: true, path: path });
+        } catch (e) { return fail(e.toString()); }
+    }
+
+    // ───────────── Importación de PNG ─────────────
     function findOrCreateBin(name) {
         var root = app.project.rootItem;
         for (var i = 0; i < root.children.numItems; i++) {
@@ -89,7 +135,7 @@ var SubFX = (function () {
         return byName;
     }
 
-    function addVideoTrack() {
+    function addVideoTrack(name) {
         var seq = app.project.activeSequence;
         var n = seq.videoTracks.numTracks;
         try {
@@ -97,67 +143,284 @@ var SubFX = (function () {
             qe.project.getActiveSequence().addTracks(1, n, 0);
         } catch (e) {}
         seq = app.project.activeSequence;
-        return seq.videoTracks.numTracks > n ? seq.videoTracks.numTracks - 1 : -1;
+        if (seq.videoTracks.numTracks <= n) return -1;
+        var idx = seq.videoTracks.numTracks - 1;
+        try { if (name) seq.videoTracks[idx].name = name; } catch (e2) {}
+        return idx;
     }
 
     function placeAt(track, item, seconds) {
         try { track.overwriteClip(item, seconds); return true; } catch (e) {}
-        try {
-            var tm = new Time();
-            tm.seconds = seconds;
-            track.overwriteClip(item, tm);
-            return true;
-        } catch (e2) { return false; }
+        try { track.overwriteClip(item, mkTime(seconds)); return true; } catch (e2) { return false; }
+    }
+
+    /** Ajusta la duración de un PNG estático ya colocado. */
+    function trimStill(track, start, dur) {
+        for (var i = track.clips.numItems - 1; i >= 0; i--) {
+            var c = track.clips[i];
+            if (Math.abs(secs(c.start) - start) < 0.01) {
+                try { c.end = mkTime(start + dur); } catch (e) { try { c.end = start + dur; } catch (e2) {} }
+                return Math.abs(secs(c.end) - (start + dur)) < 0.05;
+            }
+        }
+        return false;
     }
 
     /**
-     * payload = { binName, fps, trackIndex (-1 = nueva pista), items: [{ path, start, name }] }
+     * payload = { binName, fps, tracks: [índice por capa, -1 = nueva], trackName,
+     *             items: [{ path, start, dur, name, layer, still }] }
      */
     function importAndPlace(payloadStr) {
         try {
             var p = parse(payloadStr);
-            var seq = app.project.activeSequence;
-            if (!seq) return fail('No hay una secuencia activa.');
-
+            var seq = activeSeq();
             var warnings = [];
-            var trackIndex = p.trackIndex;
-            if (trackIndex < 0) {
-                trackIndex = addVideoTrack();
-                if (trackIndex < 0) {
-                    trackIndex = seq.videoTracks.numTracks - 1;
-                    warnings.push('No se pudo crear una pista nueva; se usó V' + (trackIndex + 1) + '.');
+            var tracks = p.tracks || [p.trackIndex];
+            var resolved = [];
+            for (var l = 0; l < tracks.length; l++) {
+                var ti = tracks[l];
+                if (ti < 0) {
+                    ti = addVideoTrack(p.trackName ? p.trackName + (l ? ' ' + (l + 1) : '') : '');
+                    if (ti < 0) {
+                        ti = app.project.activeSequence.videoTracks.numTracks - 1;
+                        warnings.push('No se pudo crear una pista nueva; se usó V' + (ti + 1) + '.');
+                    }
                 }
+                seq = app.project.activeSequence;
+                if (ti >= seq.videoTracks.numTracks) ti = seq.videoTracks.numTracks - 1;
+                resolved.push(ti);
             }
-            seq = app.project.activeSequence;
-            if (trackIndex >= seq.videoTracks.numTracks) trackIndex = seq.videoTracks.numTracks - 1;
-            var track = seq.videoTracks[trackIndex];
 
             var bin = findOrCreateBin(p.binName);
             var placed = 0;
             for (var i = 0; i < p.items.length; i++) {
                 var item = p.items[i];
+                var track = seq.videoTracks[resolved[item.layer || 0] != null ? resolved[item.layer || 0] : resolved[0]];
                 var path = nativePath(item.path);
-                app.project.importFiles([path], true, bin, true); // true = secuencia de imágenes numeradas
+                app.project.importFiles([path], true, bin, !item.still); // secuencia numerada salvo PNG estático
                 var pi = findItem(bin, path);
                 if (!pi) { warnings.push('No se encontró el clip importado: ' + item.name); continue; }
-                try {
-                    var interp = pi.getFootageInterpretation();
-                    interp.frameRate = p.fps;
-                    pi.setFootageInterpretation(interp);
-                } catch (e1) { /* versiones antiguas */ }
-                try { pi.name = 'SubFX ' + item.name; } catch (e2) {}
-                if (placeAt(track, pi, item.start)) placed++;
-                else warnings.push('No se pudo colocar: ' + item.name);
+                if (item.still) {
+                    try { pi.setInPoint(0, 4); pi.setOutPoint(item.dur, 4); } catch (e0) {}
+                } else {
+                    try {
+                        var interp = pi.getFootageInterpretation();
+                        interp.frameRate = p.fps;
+                        pi.setFootageInterpretation(interp);
+                    } catch (e1) { /* versiones antiguas */ }
+                }
+                try { pi.name = item.name; } catch (e2) {}
+                if (placeAt(track, pi, item.start)) {
+                    placed++;
+                    if (item.still && !trimStill(track, item.start, item.dur)) {
+                        if (warnings.length < 5) warnings.push('Revisa la duración de: ' + item.name);
+                    }
+                } else warnings.push('No se pudo colocar: ' + item.name);
             }
-            return toJSON({ ok: true, placed: placed, trackIndex: trackIndex, warnings: warnings });
+            return toJSON({ ok: true, placed: placed, tracks: resolved, warnings: warnings });
         } catch (e) {
             return fail(e.toString());
         }
     }
 
+    // ───────────── Clips (Auto-Zoom y silencios) ─────────────
+    function clipInfo(c, index, trackIndex) {
+        var path = '';
+        try { path = c.projectItem ? c.projectItem.getMediaPath() : ''; } catch (e) {}
+        return {
+            track: trackIndex, index: index, name: c.name,
+            start: secs(c.start), end: secs(c.end),
+            inPoint: secs(c.inPoint), outPoint: secs(c.outPoint), path: path
+        };
+    }
+
+    /** scope: 'selected' | 'track' ; trackIndex para 'track'. */
+    function getVideoClips(scope, trackIndex) {
+        try {
+            var seq = activeSeq();
+            var out = [], t, i;
+            if (scope === 'selected') {
+                var sel = seq.getSelection();
+                for (t = 0; t < seq.videoTracks.numTracks; t++) {
+                    var tr = seq.videoTracks[t];
+                    for (i = 0; i < tr.clips.numItems; i++) {
+                        var c = tr.clips[i];
+                        for (var s = 0; s < sel.length; s++) {
+                            if (sel[s].nodeId === c.nodeId) { out.push(clipInfo(c, i, t)); break; }
+                        }
+                    }
+                }
+            } else {
+                var track = seq.videoTracks[Number(trackIndex) || 0];
+                for (i = 0; i < track.clips.numItems; i++) out.push(clipInfo(track.clips[i], i, Number(trackIndex) || 0));
+            }
+            return toJSON({ ok: true, clips: out, width: seq.frameSizeHorizontal, height: seq.frameSizeVertical, fps: seqFps(seq) });
+        } catch (e) { return fail(e.toString()); }
+    }
+
+    function getAudioClips(trackIndex) {
+        try {
+            var seq = activeSeq();
+            var track = seq.audioTracks[Number(trackIndex) || 0];
+            if (!track) return fail('No existe la pista de audio A' + (Number(trackIndex) + 1) + '.');
+            var out = [];
+            for (var i = 0; i < track.clips.numItems; i++) out.push(clipInfo(track.clips[i], i, Number(trackIndex) || 0));
+            return toJSON({ ok: true, clips: out, fps: seqFps(seq) });
+        } catch (e) { return fail(e.toString()); }
+    }
+
+    function motionOf(clip) {
+        for (var i = 0; i < clip.components.numItems; i++) {
+            var c = clip.components[i];
+            if (c.matchName === 'AE.ADBE Motion' || c.displayName === 'Motion' || c.displayName === 'Movimiento') return c;
+        }
+        return null;
+    }
+
+    var INTERP = { linear: 0, hold: 4, bezier: 5 };
+
+    function keyAt(param, t, value, interp) {
+        var tm = mkTime(t);
+        try { param.addKey(tm); } catch (e) { param.addKey(t); }
+        try { param.setValueAtKey(tm, value, true); } catch (e2) { param.setValueAtKey(t, value, true); }
+        try { param.setInterpolationTypeAtKey(tm, INTERP[interp] || 0, true); } catch (e3) {}
+    }
+
+    /**
+     * payload = { clips: [{ track, index, keys: [{ t, s, interp }] }], focal: { x, y } (0-1), replace }
+     * Los tiempos de los keyframes van en segundos de secuencia.
+     */
+    function applyZoom(payloadStr) {
+        try {
+            var p = parse(payloadStr);
+            var seq = activeSeq();
+            var W = seq.frameSizeHorizontal, H = seq.frameSizeVertical;
+            var done = 0, warnings = [];
+            for (var i = 0; i < p.clips.length; i++) {
+                var cd = p.clips[i];
+                var clip = seq.videoTracks[cd.track].clips[cd.index];
+                if (!clip) continue;
+                var motion = motionOf(clip);
+                if (!motion) { warnings.push('Sin efecto Movimiento: ' + clip.name); continue; }
+                var pos = motion.properties[0], scale = motion.properties[1];
+                if (p.replace) {
+                    try { scale.setTimeVarying(false); } catch (e1) {}
+                    try { pos.setTimeVarying(false); } catch (e2) {}
+                }
+                var base = Number(scale.getValue()) || 100;
+                var P = pos.getValue();
+                var norm = P[0] <= 2 && P[1] <= 2; // Premiere reciente usa posición normalizada 0-1
+                var F = norm ? [p.focal.x, p.focal.y] : [p.focal.x * W, p.focal.y * H];
+                var moveFocal = Math.abs(p.focal.x - 0.5) > 0.001 || Math.abs(p.focal.y - 0.5) > 0.001;
+                scale.setTimeVarying(true);
+                if (moveFocal) pos.setTimeVarying(true);
+                var cStart = secs(clip.start), cIn = secs(clip.inPoint);
+                for (var k = 0; k < cd.keys.length; k++) {
+                    var key = cd.keys[k];
+                    var mt = cIn + (key.t - cStart); // tiempo de media del clip
+                    keyAt(scale, mt, base * key.s, key.interp);
+                    if (moveFocal) keyAt(pos, mt, [F[0] - (F[0] - P[0]) * key.s, F[1] - (F[1] - P[1]) * key.s], key.interp);
+                }
+                done++;
+            }
+            return toJSON({ ok: true, clips: done, warnings: warnings });
+        } catch (e) { return fail(e.toString()); }
+    }
+
+    // ───────────── Eliminación de silencios ─────────────
+    function allTracks(seq) {
+        var out = [], i;
+        for (i = 0; i < seq.videoTracks.numTracks; i++) out.push({ t: seq.videoTracks[i], video: true, i: i });
+        for (i = 0; i < seq.audioTracks.numTracks; i++) out.push({ t: seq.audioTracks[i], video: false, i: i });
+        return out;
+    }
+
+    function isLocked(track) { try { return track.isLocked(); } catch (e) { return false; } }
+
+    function razorAll(seq, sec) {
+        var qs = qe.project.getActiveSequence();
+        var tc = qeTC(seq, sec);
+        var i;
+        for (i = 0; i < qs.numVideoTracks; i++) { try { if (!isLocked(seq.videoTracks[i])) qs.getVideoTrackAt(i).razor(tc); } catch (e) {} }
+        for (i = 0; i < qs.numAudioTracks; i++) { try { if (!isLocked(seq.audioTracks[i])) qs.getAudioTrackAt(i).razor(tc); } catch (e2) {} }
+    }
+
+    /**
+     * payload = { ranges: [{ start, end }] (segundos de secuencia), mode: 'ripple' | 'markers' }
+     */
+    function cutRanges(payloadStr) {
+        try {
+            var p = parse(payloadStr);
+            var seq = activeSeq();
+            var fps = seqFps(seq);
+            var ranges = p.ranges.slice(0).sort(function (a, b) { return b.start - a.start; });
+            var warnings = [], done = 0, removed = 0, r, i, j;
+
+            if (p.mode === 'markers') {
+                for (r = 0; r < ranges.length; r++) {
+                    var m = seq.markers.createMarker(ranges[r].start);
+                    try { m.end = mkTime(ranges[r].end); } catch (e0) {}
+                    try { m.name = 'Silencio'; m.comments = 'SubtitleEngine Pro'; } catch (e1) {}
+                    try { m.setColorByIndex(1); } catch (e2) {}
+                    done++;
+                }
+                return toJSON({ ok: true, done: done, removed: 0, warnings: warnings });
+            }
+
+            app.enableQE();
+            for (r = 0; r < ranges.length; r++) {
+                // Redondear al fotograma para evitar clips de menos de un cuadro
+                var a = Math.round(ranges[r].start * fps) / fps;
+                var b = Math.round(ranges[r].end * fps) / fps;
+                if (b - a < 1 / fps) continue;
+                razorAll(seq, b);
+                razorAll(seq, a);
+                seq = app.project.activeSequence;
+                var tracks = allTracks(seq);
+                var touched = [];
+                for (i = 0; i < tracks.length; i++) {
+                    var tr = tracks[i].t;
+                    touched.push(false);
+                    if (isLocked(tr)) continue;
+                    for (j = tr.clips.numItems - 1; j >= 0; j--) {
+                        var c = tr.clips[j];
+                        var cs = secs(c.start), ce = secs(c.end);
+                        if (cs >= a - EPS && ce <= b + EPS) {
+                            c.remove(true, true); // borrado con rizo
+                            removed++;
+                            touched[i] = true;
+                        }
+                    }
+                }
+                // Pistas sin contenido en el rango: desplazar lo que viene después para no desincronizar
+                for (i = 0; i < tracks.length; i++) {
+                    if (touched[i] || isLocked(tracks[i].t)) continue;
+                    var t2 = tracks[i].t;
+                    for (j = 0; j < t2.clips.numItems; j++) {
+                        var c2 = t2.clips[j];
+                        if (secs(c2.start) >= b - EPS) {
+                            try { c2.move(mkTime(-(b - a))); } catch (e3) {
+                                if (warnings.length < 5) warnings.push('No se pudo desplazar un clip en ' + (tracks[i].video ? 'V' : 'A') + (tracks[i].i + 1) + '.');
+                            }
+                        }
+                    }
+                }
+                done++;
+            }
+            return toJSON({ ok: true, done: done, removed: removed, warnings: warnings });
+        } catch (e) { return fail(e.toString()); }
+    }
+
     return {
         ping: function () { return toJSON({ ok: true, version: app.version }); },
         getSequenceInfo: getSequenceInfo,
-        importAndPlace: importAndPlace
+        getPlayhead: getPlayhead,
+        setPlayhead: setPlayhead,
+        exportFrame: exportFrame,
+        importAndPlace: importAndPlace,
+        getVideoClips: getVideoClips,
+        getAudioClips: getAudioClips,
+        applyZoom: applyZoom,
+        cutRanges: cutRanges
     };
 })();

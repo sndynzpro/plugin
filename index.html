@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SubFX Studio</title>
+  <title>SubtitleEngine Pro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:ital,wght@0,400;0,700;0,800;0,900;1,900&family=Poppins:wght@400;600;700;800;900&family=Bebas+Neue&family=Anton&family=Luckiest+Guy&family=Bangers&family=Archivo+Black&family=Oswald:wght@500;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@300;400;500;600;700&family=Inter:wght@100;200;300;400;500;600;700;800;900&family=Montserrat:ital,wght@0,400;0,700;0,800;0,900;1,800;1,900&family=Poppins:wght@400;600;700;800;900&family=Bebas+Neue&family=Anton&family=Luckiest+Guy&family=Bangers&family=Archivo+Black&family=Oswald:wght@500;700&family=Permanent+Marker&family=Playfair+Display:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,119 +15,157 @@
   <!-- ───────────── Cabecera ───────────── -->
   <header class="topbar">
     <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M18.5 13.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor"/></svg>
-      </div>
-      <div class="brand-text">
-        <strong>SubFX</strong><span>Studio</span>
-      </div>
+      <h1>SubtitleEngine<span>Pro</span></h1>
+      <div class="conn" id="connPill"><i></i><span>Conectando…</span></div>
     </div>
-    <div class="conn" id="connPill"><i></i><span>Conectando…</span></div>
     <div class="top-actions">
-      <button class="btn ghost" id="btnUndo" title="Deshacer (Ctrl+Z)">
+      <button class="btn ghost" id="btnUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
         <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg>
       </button>
-      <button class="btn ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)">
+      <button class="btn ghost" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer">
         <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg>
       </button>
       <button class="btn" id="btnNew" title="Empezar un proyecto nuevo desde cero">
-        <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/></svg>
-        <span class="lbl-long">Nuevo proyecto</span><span class="lbl-short">Nuevo</span>
+        <span class="lbl-long">Nuevo</span><span class="lbl-short">+</span>
       </button>
-      <button class="btn" id="btnLoad">
+      <button class="btn" id="btnLoad" title="Importar .srt, .vtt o .ass">
         <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
-        <span class="lbl-long">Cargar .srt</span><span class="lbl-short">.srt</span>
+        <span class="lbl-long">Importar SRT</span><span class="lbl-short">SRT</span>
       </button>
-      <input type="file" id="fileSrt" accept=".srt,.vtt,.txt" hidden>
+      <input type="file" id="fileSrt" accept=".srt,.vtt,.ass,.ssa,.txt" hidden>
+      <div class="menu-wrap">
+        <button class="btn" id="btnSubExport" aria-haspopup="true">
+          <svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>
+          <span class="lbl-long">Exportar</span><span class="lbl-short">Exp</span>
+        </button>
+        <div class="menu" id="subExportMenu" hidden>
+          <button data-fmt="srt">Subtítulos .srt</button>
+          <button data-fmt="ass">Subtítulos con estilo .ass</button>
+        </div>
+      </div>
       <button class="btn primary" id="btnExportTop">
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        <span class="lbl-long">Enviar a Premiere</span><span class="lbl-short">Enviar</span>
+        <span class="lbl-long">Render a Timeline</span><span class="lbl-short">Render</span>
       </button>
     </div>
   </header>
 
-  <!-- ───────────── Columna izquierda ───────────── -->
-  <main class="col-main">
-    <section class="card preview-card">
-      <div class="stage" id="stage">
-        <div class="stage-inner" id="stageInner">
-          <canvas id="preview"></canvas>
-        </div>
-      </div>
-      <div class="transport">
-        <button class="play" id="btnPlay" title="Reproducir / pausar (Espacio)">
-          <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
-          <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
-        </button>
-        <div class="timecode" id="timeLabel">00:00.0</div>
-        <div class="timeline" id="timeline">
-          <div class="tl-cues" id="tlCues"></div>
-          <div class="tl-head" id="tlHead"></div>
-        </div>
-        <select class="mini-select" id="selBg" title="Fondo de la vista previa">
-          <option value="checker">Transparente</option>
-          <option value="dark">Oscuro</option>
-          <option value="scene">Escena</option>
-          <option value="green">Croma</option>
-          <option value="image">Imagen…</option>
-        </select>
-        <input type="file" id="bgFile" accept="image/*" hidden>
-      </div>
-    </section>
-
-    <section class="card subs-card">
-      <div class="card-head">
+  <!-- ───────────── Lista y edición de subtítulos ───────────── -->
+  <section class="card subs-card">
+    <div class="card-head">
+      <div>
         <h2>Subtítulos</h2>
-        <div class="head-right">
-          <button class="link-btn" id="btnClearFx" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar todos los efectos</button>
-          <span class="sel-count" id="selCount">0 seleccionadas</span>
-        </div>
+        <span class="sub" id="subsSummary">—</span>
       </div>
-      <div class="subs-tools">
-        <div class="search">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
-          <input id="search" type="text" placeholder="Buscar y seleccionar palabra…" autocomplete="off">
-        </div>
-        <div class="quick" id="quick">
-          <button data-q="all">Todas</button>
-          <button data-q="none">Ninguna</button>
-          <button data-q="invert">Invertir</button>
-          <button data-q="same" title="Todas las apariciones de las palabras seleccionadas">Iguales</button>
-          <button data-q="numbers">Números</button>
-          <button data-q="long" title="Palabras de 7 letras o más">Largas</button>
-          <button data-q="fx">Con efecto</button>
-        </div>
+      <div class="head-right">
+        <span class="sel-count" id="selCount">0 seleccionadas</span>
       </div>
-      <div class="hint">Haz clic en las palabras para seleccionarlas · <kbd>Shift</kbd> para un rango · doble clic para corregir el texto</div>
-      <div class="cue-list" id="cueList"></div>
-      <div class="empty" id="emptyState" hidden>
-        <div class="empty-icon">SRT</div>
-        <h3>Proyecto nuevo</h3>
-        <p>Arrastra aquí un archivo <b>.srt</b> o cárgalo desde tu equipo</p>
-        <div class="empty-actions">
-          <button class="btn primary" id="btnEmptyLoad">Cargar .srt</button>
-          <button class="btn" id="btnSample">Probar con un ejemplo</button>
-        </div>
+    </div>
+    <div class="row-tools">
+      <button class="btn small" id="btnAddCue">+ Agregar línea</button>
+      <button class="btn small" id="btnAddParallel" title="Crea una línea en otra capa con el mismo tiempo que el subtítulo seleccionado">+ Añadir paralela</button>
+      <button class="btn small" id="btnAutoKey" title="Marca la palabra de mayor impacto de cada subtítulo">Palabra clave auto</button>
+      <button class="link-btn" id="btnClearFx" title="Quitar efectos, colores y tamaños de todas las palabras">Quitar efectos</button>
+    </div>
+    <div class="subs-tools">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+        <input id="search" type="text" placeholder="Buscar palabra (Enter selecciona)" autocomplete="off">
       </div>
-    </section>
-  </main>
+      <div class="search replace">
+        <input id="replace" type="text" placeholder="Reemplazar por…" autocomplete="off">
+        <button class="btn small" id="btnReplace">Reemplazar</button>
+      </div>
+    </div>
+    <div class="quick" id="quick">
+      <button data-q="all">Todas</button>
+      <button data-q="none">Ninguna</button>
+      <button data-q="invert">Invertir</button>
+      <button data-q="same" title="Todas las apariciones de las palabras seleccionadas">Iguales</button>
+      <button data-q="numbers">Números</button>
+      <button data-q="long" title="Palabras de 7 letras o más">Largas</button>
+      <button data-q="fx">Con efecto</button>
+      <button data-q="key">Clave</button>
+    </div>
+    <div class="cue-list" id="cueList"></div>
+    <div class="empty" id="emptyState" hidden>
+      <div class="empty-icon">SRT</div>
+      <h3>Proyecto nuevo</h3>
+      <p>Arrastra aquí un archivo <b>.srt</b> o <b>.ass</b>, o impórtalo desde tu equipo</p>
+      <div class="empty-actions">
+        <button class="btn primary" id="btnEmptyLoad">Importar SRT</button>
+        <button class="btn" id="btnSample">Probar con un ejemplo</button>
+      </div>
+    </div>
+  </section>
 
-  <!-- ───────────── Columna derecha (inspector) ───────────── -->
+  <!-- ───────────── Vista previa ───────────── -->
+  <section class="card preview-card">
+    <div class="stage" id="stage">
+      <div class="stage-inner" id="stageInner">
+        <canvas id="preview"></canvas>
+      </div>
+    </div>
+    <div class="transport">
+      <button class="play" id="btnPlay" title="Reproducir / pausar (Espacio)" aria-label="Reproducir">
+        <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+      </button>
+      <div class="timecode" id="timeLabel">00:00:00:00</div>
+      <div class="timeline" id="timeline" title="Arrastra los bloques para moverlos o sus bordes para recortarlos">
+        <div class="tl-sil" id="tlSil"></div>
+        <div class="tl-cues" id="tlCues"></div>
+        <div class="tl-head" id="tlHead"></div>
+      </div>
+    </div>
+    <div class="transport-2">
+      <label class="pill-toggle" title="Sincroniza el cabezal con Premiere en ambos sentidos">
+        <input type="checkbox" id="chkSync"><span></span>Sync TC
+      </label>
+      <label class="pill-toggle" title="Muestra las zonas seguras del estilo">
+        <input type="checkbox" id="chkSafe" checked><span></span>Zona segura
+      </label>
+      <button class="btn small" id="btnGrab" title="Usa el fotograma actual de Premiere como fondo">Capturar fotograma</button>
+      <select class="mini-select" id="selBg" title="Fondo de la vista previa">
+        <option value="checker">Transparente</option>
+        <option value="dark">Oscuro</option>
+        <option value="scene">Escena</option>
+        <option value="green">Croma</option>
+        <option value="image">Imagen…</option>
+      </select>
+      <input type="file" id="bgFile" accept="image/*" hidden>
+    </div>
+  </section>
+
+  <!-- ───────────── Inspector ───────────── -->
   <aside class="col-side card">
     <nav class="tabs">
-      <button class="tab active" data-tab="fx">
-        <svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.3L20 9l-4.4 3.8L17 19l-5-3-5 3 1.4-6.2L4 9l5.8-.7z"/></svg>Efectos
-      </button>
-      <button class="tab" data-tab="style">
-        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg>Estilos
-      </button>
-      <button class="tab" data-tab="export">
-        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>Exportar
-      </button>
+      <button class="tab active" data-tab="style">Estilos</button>
+      <button class="tab" data-tab="fx">Efectos</button>
+      <button class="tab" data-tab="tools">Herramientas</button>
+      <button class="tab" data-tab="export">Render</button>
     </nav>
 
+    <!-- Estilos -->
+    <div class="tab-panel active" id="tab-style">
+      <div class="layers" id="layerBar"></div>
+      <div class="seg" id="styleCats"></div>
+      <div class="style-gallery" id="styleGallery"></div>
+      <div class="row-btns wrap" id="styleActions">
+        <button class="btn small" data-act="dup">Guardar como nuevo preset</button>
+        <button class="btn small" data-act="assign" title="Mueve los subtítulos con palabras seleccionadas a esta capa">Aplicar a seleccionados</button>
+        <button class="btn small" data-act="rename">Renombrar</button>
+        <button class="btn small" data-act="reset">Restablecer</button>
+        <button class="btn small danger" data-act="delete">Eliminar</button>
+        <button class="btn small" data-act="export">Exportar JSON</button>
+        <button class="btn small" data-act="import">Importar JSON</button>
+        <input type="file" id="styleFile" accept=".json" hidden>
+      </div>
+      <div id="styleEditor"></div>
+    </div>
+
     <!-- Efectos -->
-    <div class="tab-panel active" id="tab-fx">
+    <div class="tab-panel" id="tab-fx">
       <div class="sel-banner" id="fxSelInfo"></div>
       <div class="seg" id="fxCats">
         <button class="active" data-cat="">Todos</button>
@@ -138,7 +176,11 @@
       <div class="fx-grid" id="fxGrid"></div>
 
       <div class="group" id="wordProps">
-        <div class="group-title">Personalizar palabras seleccionadas</div>
+        <div class="group-title">Palabras seleccionadas</div>
+        <div class="field inline">
+          <label>Palabra clave (Highlight)</label>
+          <label class="toggle"><input type="checkbox" id="ovKey"><span></span></label>
+        </div>
         <div class="field">
           <label>Color del texto</label>
           <div class="swatches" id="swText"></div>
@@ -161,28 +203,117 @@
         </div>
         <div class="row-btns">
           <button class="btn small" id="btnFxRemove">Quitar efecto</button>
-          <button class="btn small" id="btnWordReset">Restablecer palabra</button>
+          <button class="btn small" id="btnWordReset">Restablecer</button>
           <button class="btn small" id="btnPreviewSel">▶ Ver</button>
         </div>
       </div>
     </div>
 
-    <!-- Estilos -->
-    <div class="tab-panel" id="tab-style">
-      <div class="style-gallery" id="styleGallery"></div>
-      <div class="row-btns wrap" id="styleActions">
-        <button class="btn small" data-act="dup">Duplicar</button>
-        <button class="btn small" data-act="rename">Renombrar</button>
-        <button class="btn small" data-act="reset">Restablecer</button>
-        <button class="btn small danger" data-act="delete">Eliminar</button>
-        <button class="btn small" data-act="export">Exportar</button>
-        <button class="btn small" data-act="import">Importar</button>
-        <input type="file" id="styleFile" accept=".json" hidden>
-      </div>
-      <div id="styleEditor"></div>
+    <!-- Herramientas: Auto-Zoom y silencios -->
+    <div class="tab-panel" id="tab-tools">
+      <details class="sec tool" open>
+        <summary>Eliminación de silencios <span class="sum-val" id="silSummary">-38 dB · 60 ms</span></summary>
+        <div class="sec-body">
+          <div class="stat-row">
+            <div class="stat"><small>Umbral</small><b id="silThrOut">-38 dB</b></div>
+            <div class="stat"><small>Pausa mínima</small><b id="silMinOut">0.40 s</b></div>
+            <div class="stat"><small>Detectados</small><b id="silCount">—</b></div>
+          </div>
+          <div class="field range"><label>Umbral de decibeles</label><input type="range" id="silThr" min="-50" max="-25" step="1"></div>
+          <div class="field range"><label>Duración mínima de silencio</label><input type="range" id="silMin" min="0.25" max="0.8" step="0.05"></div>
+          <div class="two">
+            <div class="field range"><label>Padding in <output id="silPadInOut"></output></label><input type="range" id="silPadIn" min="0.04" max="0.08" step="0.005"></div>
+            <div class="field range"><label>Padding out <output id="silPadOutOut"></output></label><input type="range" id="silPadOut" min="0.06" max="0.12" step="0.005"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Pista de audio</label><select id="silTrack"></select></div>
+            <div class="field"><label>Acción</label>
+              <select id="silMode">
+                <option value="ripple">Ripple delete directo</option>
+                <option value="shorten">Acortar silencios a 0.15 s</option>
+                <option value="markers">Solo marcadores</option>
+              </select>
+            </div>
+          </div>
+          <div class="field inline">
+            <label>Ajustar los subtítulos cargados</label>
+            <label class="toggle"><input type="checkbox" id="silShift" checked><span></span></label>
+          </div>
+          <div class="row-btns">
+            <button class="btn small" id="btnSilAnalyze">Analizar</button>
+            <button class="btn small" id="btnSilFile" title="Analiza un archivo de audio o vídeo de tu equipo">Analizar archivo…</button>
+            <input type="file" id="silFile" accept="audio/*,video/*" hidden>
+            <button class="btn small primary" id="btnSilRun">✂ Ripple Cut</button>
+          </div>
+          <p class="note" id="silNote">Analiza la pista para ver los silencios marcados en rojo sobre la línea de tiempo.</p>
+        </div>
+      </details>
+
+      <details class="sec tool" open>
+        <summary>Auto-Zoom paramétrico <span class="sum-val" id="zoomSummary">100% → 120%</span></summary>
+        <div class="sec-body">
+          <canvas class="zoom-graph" id="zoomGraph" width="600" height="150"></canvas>
+          <div class="two">
+            <div class="field range"><label>Zoom base <output id="zoomMinOut"></output></label><input type="range" id="zoomMin" min="100" max="115" step="1"></div>
+            <div class="field range"><label>Zoom máximo <output id="zoomMaxOut"></output></label><input type="range" id="zoomMax" min="105" max="140" step="1"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Disparador</label>
+              <select id="zoomTrigger">
+                <option value="cut">Por corte de clip</option>
+                <option value="silence">Por silencio (voz = zoom in)</option>
+                <option value="interval">Por intervalo fijo</option>
+              </select>
+            </div>
+            <div class="field"><label>Dirección</label>
+              <select id="zoomDir">
+                <option value="in">Zoom in de impacto</option>
+                <option value="out">Zoom out de apertura</option>
+                <option value="alternate">Alternar por clip</option>
+              </select>
+            </div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Curva</label>
+              <select id="zoomEase">
+                <option value="smooth">Smooth ease in/out</option>
+                <option value="linear">Linear</option>
+                <option value="snappy">Exponential snappy</option>
+              </select>
+            </div>
+            <div class="field range"><label>Transición <output id="zoomFramesOut"></output></label><input type="range" id="zoomFrames" min="6" max="15" step="1"></div>
+          </div>
+          <div class="field range" id="zoomIntervalRow"><label>Intervalo <output id="zoomIntervalOut"></output></label><input type="range" id="zoomInterval" min="1" max="8" step="0.5"></div>
+          <div class="field"><label>Punto focal</label>
+            <select id="zoomFocal">
+              <option value="center">Centrado</option>
+              <option value="face">Tercio superior (rostro)</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+          <div class="two" id="zoomFocalXY">
+            <div class="field range"><label>Focal X <output id="zoomFxOut"></output></label><input type="range" id="zoomFx" min="0" max="100" step="1"></div>
+            <div class="field range"><label>Focal Y <output id="zoomFyOut"></output></label><input type="range" id="zoomFy" min="0" max="100" step="1"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label>Aplicar a</label>
+              <select id="zoomScope">
+                <option value="selected">Clips seleccionados</option>
+                <option value="track">Todos los clips de la pista</option>
+              </select>
+            </div>
+            <div class="field"><label>Pista de vídeo</label><select id="zoomTrack"></select></div>
+          </div>
+          <div class="field inline">
+            <label>Reemplazar keyframes existentes</label>
+            <label class="toggle"><input type="checkbox" id="zoomReplace" checked><span></span></label>
+          </div>
+          <button class="btn primary big" id="btnZoomRun">⚡ Aplicar zoom en clips</button>
+        </div>
+      </details>
     </div>
 
-    <!-- Exportar -->
+    <!-- Render a Timeline -->
     <div class="tab-panel" id="tab-export">
       <div class="seq-card" id="seqInfo"></div>
       <div class="group">
@@ -191,35 +322,45 @@
           <label>Resolución</label>
           <select id="expFormat">
             <option value="auto">Igual que la secuencia</option>
+            <option value="1080x1920">1080 × 1920 (9:16 Reels / TikTok)</option>
             <option value="1920x1080">1920 × 1080 (16:9)</option>
-            <option value="1080x1920">1080 × 1920 (9:16 vertical)</option>
             <option value="1080x1080">1080 × 1080 (1:1)</option>
             <option value="1080x1350">1080 × 1350 (4:5)</option>
             <option value="3840x2160">3840 × 2160 (4K)</option>
             <option value="1280x720">1280 × 720</option>
           </select>
         </div>
-        <div class="field">
-          <label>Fotogramas por segundo</label>
-          <select id="expFps">
-            <option value="auto">Igual que la secuencia</option>
-            <option value="23.976">23.976</option><option value="24">24</option>
-            <option value="25">25</option><option value="29.97">29.97</option>
-            <option value="30">30</option><option value="50">50</option>
-            <option value="59.94">59.94</option><option value="60">60</option>
-          </select>
+        <div class="two">
+          <div class="field">
+            <label>Fotogramas por segundo</label>
+            <select id="expFps">
+              <option value="auto">Secuencia</option>
+              <option value="23.976">23.976</option><option value="24">24</option>
+              <option value="25">25</option><option value="29.97">29.97</option>
+              <option value="30">30</option><option value="50">50</option>
+              <option value="59.94">59.94</option><option value="60">60</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Modo PNG</label>
+            <select id="expMode">
+              <option value="auto">Auto (estático si no se anima)</option>
+              <option value="sequence">Siempre secuencia</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="group">
         <div class="group-title">Línea de tiempo</div>
         <div class="field">
-          <label>Pista de vídeo destino</label>
+          <label>Pista de vídeo (capa 1)</label>
           <select id="expTrack"></select>
         </div>
+        <p class="note tight">Las líneas paralelas (capa 2, 3…) se colocan en las pistas siguientes.</p>
         <div class="field">
           <label>Colocar desde</label>
           <select id="expStart">
-            <option value="zero">El inicio de la secuencia (00:00)</option>
+            <option value="zero">El inicio de la secuencia</option>
             <option value="playhead">La posición del cabezal</option>
           </select>
         </div>
@@ -233,14 +374,14 @@
         <div class="field">
           <label>Carpeta de renderizado</label>
           <div class="path-row">
-            <input type="text" id="expDir" placeholder="Documentos/SubFX Renders">
+            <input type="text" id="expDir" placeholder="Documentos/SubtitleEngine Renders">
             <button class="btn small" id="btnDir">Elegir…</button>
           </div>
         </div>
       </div>
       <button class="btn primary big" id="btnExport">
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        Renderizar e insertar en Premiere
+        Render a Timeline
       </button>
       <div class="progress" id="expProgress" hidden>
         <div class="bar"><i id="expBar"></i></div>
@@ -252,7 +393,7 @@
       <div class="row-btns">
         <button class="btn small" id="btnFrame">Descargar fotograma PNG</button>
       </div>
-      <p class="note">Cada subtítulo se renderiza como una secuencia PNG con transparencia y se coloca en la pista elegida, sincronizado con los tiempos del .srt. Los fotogramas idénticos se reutilizan para acelerar el proceso.</p>
+      <p class="note">Los bloques sin animación se exportan como un único PNG-32 transparente; los animados, como secuencia PNG. Cada archivo se nombra <code>[índice]_[timecode]_[hash].png</code> y se reutiliza si no cambió.</p>
     </div>
   </aside>
 </div>
@@ -261,11 +402,11 @@
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="newTitle">
     <h3 id="newTitle">Empezar un proyecto nuevo</h3>
     <p class="modal-sub">Elige qué quieres borrar. Tus subtítulos se pueden recuperar con <kbd>Ctrl+Z</kbd>; los estilos no.</p>
-    <label class="check"><input type="checkbox" checked disabled><span><b>Subtítulos y efectos de palabras</b><small>Se vacía la lista para cargar un .srt nuevo</small></span></label>
-    <label class="check"><input type="checkbox" id="rsExport" checked><span><b>Ajustes de exportación</b><small>Resolución, fps, pista, desfase de sincronía y carpeta</small></span></label>
-    <label class="check"><input type="checkbox" id="rsStyle"><span><b>Volver al estilo por defecto</b><small>Selecciona «Hormozi» como estilo activo</small></span></label>
-    <label class="check"><input type="checkbox" id="rsPresets"><span><b>Restablecer los estilos incluidos</b><small>Deshace los cambios que hiciste a los 9 estilos de fábrica</small></span></label>
-    <label class="check danger"><input type="checkbox" id="rsCustom"><span><b>Eliminar mis estilos personalizados</b><small>Borra los estilos que duplicaste o importaste</small></span></label>
+    <label class="check"><input type="checkbox" checked disabled><span><b>Subtítulos y efectos de palabras</b><small>Se vacía la lista para importar un .srt nuevo</small></span></label>
+    <label class="check"><input type="checkbox" id="rsExport" checked><span><b>Ajustes de render</b><small>Resolución, fps, pista, desfase y carpeta</small></span></label>
+    <label class="check"><input type="checkbox" id="rsStyle"><span><b>Volver a los estilos por defecto</b><small>30X Default en la capa 1 y 30X Speaker 2 en la capa 2</small></span></label>
+    <label class="check"><input type="checkbox" id="rsPresets"><span><b>Restablecer los presets incluidos</b><small>Deshace los cambios que hiciste a los presets de fábrica</small></span></label>
+    <label class="check danger"><input type="checkbox" id="rsCustom"><span><b>Eliminar mis presets</b><small>Borra los presets que guardaste o importaste</small></span></label>
     <div class="modal-actions">
       <button class="btn" id="newCancel">Cancelar</button>
       <button class="btn primary" id="newConfirm">Empezar de cero</button>
@@ -273,7 +414,7 @@
   </div>
 </div>
 
-<div class="drop-overlay" id="dropOverlay"><div>Suelta tu archivo .srt</div></div>
+<div class="drop-overlay" id="dropOverlay"><div>Suelta tu archivo .srt o .ass</div></div>
 <div class="toasts" id="toasts"></div>
 
 <script src="js/effects.js"></script>
@@ -282,6 +423,8 @@
 <script src="js/renderer.js"></script>
 <script src="js/cep.js"></script>
 <script src="js/exporter.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/zoom.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

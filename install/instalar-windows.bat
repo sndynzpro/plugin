@@ -1,21 +1,27 @@
 @echo off
 setlocal
-title Instalador de SubFX Studio
+title Instalador de SubtitleEngine Pro
 set "SRC=%~dp0.."
-set "DEST=%APPDATA%\Adobe\CEP\extensions\SubFX-Studio"
+set "EXT=%APPDATA%\Adobe\CEP\extensions"
+set "DEST=%EXT%\SubtitleEngine-Pro"
 
 echo.
 echo  ==========================================
-echo    SubFX Studio para Adobe Premiere Pro
+echo    SubtitleEngine Pro para Adobe Premiere Pro
 echo  ==========================================
 echo.
 echo  Activando extensiones sin firmar (PlayerDebugMode)...
 for %%v in (9 10 11 12 13) do reg add "HKCU\Software\Adobe\CSXS.%%v" /v PlayerDebugMode /t REG_SZ /d 1 /f >nul
 
+if exist "%EXT%\SubFX-Studio" (
+  echo  Quitando la version anterior ^(SubFX Studio^)...
+  rmdir /s /q "%EXT%\SubFX-Studio"
+)
+
 echo  Copiando archivos a:
 echo  %DEST%
 if exist "%DEST%" rmdir /s /q "%DEST%"
-robocopy "%SRC%" "%DEST%" /E /XD .git install node_modules /XF *.zxp /NFL /NDL /NJH /NJS >nul
+robocopy "%SRC%" "%DEST%" /E /XD .git install docs node_modules /XF *.zxp *.pdf /NFL /NDL /NJH /NJS >nul
 if %ERRORLEVEL% GEQ 8 (
   echo  ERROR: no se pudieron copiar los archivos.
   pause
@@ -24,6 +30,6 @@ if %ERRORLEVEL% GEQ 8 (
 
 echo.
 echo  Listo. Reinicia Premiere Pro y abre:
-echo  Ventana ^> Extensiones ^> SubFX Studio
+echo  Ventana ^> Extensiones ^> SubtitleEngine Pro
 echo.
 pause

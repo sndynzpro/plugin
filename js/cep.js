@@ -1,5 +1,5 @@
 /*
- * SubFX Studio — Puente con Premiere Pro (CEP) y sistema de archivos.
+ * SubtitleEngine Pro — Puente con Premiere Pro (CEP) y sistema de archivos.
  * Fuera de Premiere (abriendo index.html en un navegador) funciona en
  * "modo navegador": todo el editor funciona pero no se puede exportar.
  */
@@ -81,6 +81,52 @@
     if (r && r.err) throw new Error('No se pudo escribir ' + path + ' (código ' + r.err + ')');
   }
 
+  function exists(path) {
+    if (nodeFs) { try { return nodeFs.existsSync(path); } catch (e) { return false; } }
+    if (cepFs) { const r = cepFs.stat(path); return !!(r && r.err === 0); }
+    return false;
+  }
+
+  /** Lee un archivo binario como ArrayBuffer (requiere Node). */
+  function readBinary(path) {
+    if (!nodeFs) throw new Error('Sin acceso a Node.js para leer ' + path);
+    const b = nodeFs.readFileSync(path);
+    return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  }
+
+  /** Lee una imagen como data URL (para usar el fotograma de Premiere de fondo). */
+  function readDataURL(path, mime) {
+    if (nodeFs) return 'data:' + (mime || 'image/png') + ';base64,' + nodeFs.readFileSync(path).toString('base64');
+    const r = cepFs.readFile(path, root.cep.encoding.Base64);
+    if (r.err) throw new Error('No se pudo leer ' + path);
+    return 'data:' + (mime || 'image/png') + ';base64,' + r.data;
+  }
+
+  function tmpDir() {
+    if (nodeRequire) { try { return nodeRequire('os').tmpdir().replace(/\\/g, '/'); } catch (e) { /* sigue */ } }
+    return systemPath('userData') + '/SubtitleEngine';
+  }
+
+  /** Extrae el audio a WAV mono 16 kHz con ffmpeg (si está instalado). */
+  function ffmpegToWav(src, dest) {
+    return new Promise((resolve, reject) => {
+      if (!nodeRequire) { reject(new Error('Node.js no disponible')); return; }
+      const cp = nodeRequire('child_process');
+      cp.execFile('ffmpeg', ['-y', '-v', 'error', '-i', src, '-vn', '-ac', '1', '-ar', '16000', '-f', 'wav', dest],
+        { maxBuffer: 1 << 24 }, err => (err ? reject(new Error('ffmpeg no disponible o falló: ' + err.message)) : resolve(dest)));
+    });
+  }
+
+  /** Espera a que exista un archivo (p. ej. el fotograma que exporta Premiere). */
+  async function waitFile(path, ms) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < (ms || 4000)) {
+      if (exists(path)) return true;
+      await new Promise(r => setTimeout(r, 120));
+    }
+    return false;
+  }
+
   function pickFolder(title, initial) {
     if (!cepFs || !cepFs.showOpenDialogEx) return null;
     const r = cepFs.showOpenDialogEx(false, true, title || 'Elegir carpeta', initial || '', []);
@@ -110,7 +156,7 @@
     available: !!host,
     canWrite: !!(nodeFs || cepFs),
     evalScript, call, systemPath, extensionPath,
-    fs: { mkdirp, encodePNG, writeFile },
+    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, ffmpegToWav },
     pickFolder, openFolder, registerKeys
   };
 })(window);
