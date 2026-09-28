@@ -92,5 +92,12 @@ Usa una secuencia de prueba (duplica la tuya). Todo se deshace con `Ctrl+Z` en P
 | 10 | Seleccionar clips → Auto-Zoom *Por corte*, *Smooth* | Keyframes de Escala 100 % → 120 % al inicio de cada clip. |
 | 11 | Auto-Zoom con punto focal *Tercio superior* | Además keyframes de Posición: el rostro no se sale del cuadro. |
 | 12 | Exportar `.srt` y `.ass` | Se abren en Premiere / VLC con los tiempos correctos. |
+| 13 | **Transcribir** con la API (clave de OpenAI o Groq) una secuencia con pausas largas | Subtítulos con tiempo por palabra; nada inventado en los silencios; al reproducir, el karaoke coincide con la voz. |
+| 14 | **Transcribir** con whisper.cpp local (Buscar → Descargar modelo) | Igual que la 13 sin conexión; barra de progreso de whisper.cpp. |
+| 15 | Transcribir solo entre marcas de entrada/salida | Solo aparece el texto de ese tramo, en su tiempo de secuencia. |
+| 16 | **Vídeo → Crear proxy del timeline** y reproducir en el panel | Vídeo con audio bajo los subtítulos; al pausar, texto e imagen coinciden en el mismo fotograma. Cambiar el estilo se ve al instante. |
+| 17 | Proxy + **Seguir a Premiere** y reproducir en Premiere | El proxy del panel sigue la reproducción (silenciado) sin derivar. |
+| 18 | Quitar silencios con clips enlazados y un título en V2 que cubre parte de una pausa | Vídeo, audio y V2 siguen sincronizados después de cada corte. |
+| 19 | Apariencia: cambiar tema, acento y densidad | Todo el panel cambia al instante y se recuerda al reabrir. |
 
 Si algo falla, copia el informe del diagnóstico y la consola (`http://localhost:8098`) y compártelos.

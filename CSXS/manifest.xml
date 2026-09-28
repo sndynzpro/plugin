@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.subtitleengine.pro" ExtensionBundleVersion="2.0.1"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.subtitleengine.pro" ExtensionBundleVersion="2.1.0"
   ExtensionBundleName="SubtitleEngine Pro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.subtitleengine.pro.panel" Version="2.0.1" />
+    <Extension Id="com.subtitleengine.pro.panel" Version="2.1.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

@@ -25,6 +25,34 @@ La implementación sigue `SubtitleEngine_Pro_Plan_Arquitectura.pdf`.
 - **Tiempos** (Herramientas): desplazar todo, duración mínima/máxima, separación, velocidad de lectura y **Bloques → subtítulos** para exportar un `.srt` ya cortado. **Dividir** y **Unir** en la lista.
 - **JSON de Whisper** con tiempos por palabra: karaoke exacto en lugar de repartir el tiempo.
 
+### Transcripción con Whisper
+
+**Transcribir** (lista de subtítulos) genera los subtítulos del timeline con el tiempo de cada palabra:
+
+- **En la nube**: cualquier API compatible con OpenAI (OpenAI `whisper-1`, Groq `whisper-large-v3` u otra). Pega tu clave; se guarda solo en ese equipo.
+- **En tu equipo**: [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (Mac: `brew install whisper-cpp`; Windows: `whisper-bin-x64.zip` de sus releases). El panel lo encuentra solo y descarga el modelo (recomendado: `large-v3-turbo`). El audio no sale de tu computadora.
+
+Para que el resultado sea fiel, el audio se toma del timeline en tiempo de secuencia (sin desfase) y después se revisa contra la voz real detectada:
+- ancla el inicio de cada palabra a la voz,
+- elimina lo que Whisper inventa en los silencios («Gracias por ver el video»…),
+- subraya en rojo las palabras dudosas (filtro **Seleccionar → Dudosas**).
+
+El campo **Vocabulario** mejora nombres propios y marcas (30X, Bilbao…).
+
+### ¿Cuál es la mejor forma de ver los subtítulos en tiempo real?
+
+| Forma | Cuándo usarla |
+| --- | --- |
+| **Vídeo proxy en el panel** (Vídeo → Crear proxy) | **Para diseñar.** Cada cambio de estilo se ve al instante sobre el vídeo real, con audio y sincronizado al fotograma. El proxy (540 px) se genera una vez con ffmpeg; también puedes cargar un .mp4 de baja calidad exportado por ti. |
+| **Vista previa rápida en Premiere** | **Para comprobar.** PNG fijos por palabra en su propia pista, generados en segundos: lo ves a velocidad real en el monitor de programa, en su posición final exacta. |
+| Render final | Para entregar. |
+
+Exportar el render completo cada vez para verlo es lo más lento; un vídeo de baja calidad en el panel es lo más eficaz para trabajar en tiempo real.
+
+### Apariencia
+
+Botón ◐ de la barra superior: tema **Oscuro** (como Premiere, por defecto), **Claro** o **Salvia**; color de acento y densidad. Las fuentes de la interfaz y de todos los presets van incluidas en el plugin: el render no depende de internet.
+
 ### Sincronía y vista en tiempo real
 
 - **Al fotograma exacto**: los PNG se colocan en ticks de la secuencia (29.97 = 30000/1001, no 29.97), sin solapes ni huecos, y a la resolución exacta de la secuencia (escala 100 %, píxel cuadrado). Si la resolución no coincide o falta una fuente, el panel avisa antes de renderizar.
@@ -50,7 +78,7 @@ Guía completa, lista de pruebas en Premiere y publicación de versiones: [docs/
 
 ## Instalación
 
-Requiere Premiere Pro 2022 (v22) o posterior, en Windows o macOS.
+Requiere Premiere Pro 2022 (v22) o posterior, en Windows o macOS. Opcional: **ffmpeg** (proxy de vídeo y códecs de audio poco comunes) y **whisper.cpp** (transcripción local).
 
 - **Windows**: ejecuta `install/instalar-windows.bat`.
 - **macOS**: `bash install/instalar-mac.sh`.
@@ -86,6 +114,9 @@ js/renderer.js        03/03B · Motor Canvas 2D (vista previa y render)
 js/exporter.js        08 · Pipeline PNG-32
 js/audio.js           07 · Detección de silencios
 js/zoom.js            06 · Plan de keyframes del Auto-Zoom
+js/transcribe.js      Whisper: mezcla del timeline, API/whisper.cpp y refinado contra la voz
+js/proxy.js           Vídeo proxy del timeline con ffmpeg (por lotes, fps exactos)
+assets/fonts/         Fuentes empaquetadas (SIL OFL)
 js/cep.js             Puente con Premiere y sistema de archivos
 js/app.js             Lógica de la interfaz
 jsx/host.jsx          ExtendScript: secuencia, cabezal, importación, zoom y cortes
