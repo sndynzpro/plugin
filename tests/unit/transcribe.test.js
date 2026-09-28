@@ -159,15 +159,17 @@ test('la descarga de modelos no guarda archivos truncados', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'se-dl-'));
   const dest = path.join(dir, 'ggml-base.bin');
   globalThis.require = require;
-  const orig = T.modelUrl;
+  const https = require('https'), get = https.get;
+  // Se descarga desde el servidor local sustituyendo el https por http
+  https.get = (url, cb) => http.get(`http://127.0.0.1:${srv.address().port}/m`, cb);
   try {
-    // Se descarga desde el servidor local sustituyendo el https por http
-    const https = require('https'), http2 = require('http');
-    const get = https.get;
-    https.get = (url, cb) => http2.get(`http://127.0.0.1:${srv.address().port}/m`, cb);
     await assert.rejects(T.downloadModel('base', dest), /interrump|incompleta|aborted|socket|ECONNRESET/i);
-    https.get = get;
     assert.equal(fs.existsSync(dest), false);
     assert.equal(fs.existsSync(dest + '.part'), false);
-  } finally { delete globalThis.require; srv.close(); void orig; }
+  } finally { https.get = get; delete globalThis.require; srv.close(); }
+});
+
+test('el corte elige el silencio más cercano al límite, no el último evaluado', () => {
+  const r = T.chunkRanges(1000, 600, [{ start: 590, end: 700 }, { start: 400, end: 420 }]);
+  assert.equal(r[0].end, 600);
 });

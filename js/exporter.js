@@ -88,7 +88,7 @@
     CEP.fs.mkdirp(outDir);
     // Caché por contenido: [índice]_[tc]_[hash] → se busca por «tc_hash», da igual la posición del bloque
     const prior = new Map();
-    (CEP.fs.list ? CEP.fs.list(outDir) : []).forEach(n => { const m = /^\d{4}_(.+)$/.exec(n); if (m) prior.set(m[1], n); });
+    (CEP.fs.list ? CEP.fs.list(outDir) : []).forEach(n => { const m = /^\d{4,}_(.+)$/.exec(n); if (m) prior.set(m[1], n); });
     for (let i = 0; i < plan.length; i++) {
       const { ch, style, layer, f0, n, still, t: tStill, seg } = plan[i];
       const tc = SRT.toTC(f0 / fps, fps).replace(/:/g, '-');
@@ -96,7 +96,7 @@
       const label = ch.words.map(w => w.ref.text).join(' ');
       const name = `${opts.namePrefix || 'SE· '}${layer ? 'L' + (layer + 1) + ' ' : ''}${pad(i + 1, 3)} · ${label.slice(0, 40)}`;
 
-      const key = base.replace(/^\d{4}_/, '');
+      const key = base.replace(/^\d{4,}_/, '');
       if (still) {
         const reuse = prior.get(key + '.png');
         const path = `${outDir}/${reuse || base + '.png'}`;

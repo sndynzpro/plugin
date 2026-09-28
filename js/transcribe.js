@@ -82,14 +82,15 @@
     let a = 0;
     while (duration - a > maxSec) {
       const target = a + maxSec, lo = a + maxSec * 0.6;
-      let cut = target;
       // Punto de corte dentro de [lo, target]: el silencio más cercano al límite.
       // Siempre cut ≥ lo > a, así que el bucle avanza aunque haya un silencio enorme.
+      let best = null;
       (silences || []).forEach(r => {
         if (r.end <= lo || r.start >= target) return;
         const p = Math.min(target, Math.max(lo, (r.start + r.end) / 2));
-        if (cut === target || Math.abs(p - target) < Math.abs(cut - target)) cut = p;
+        if (best === null || target - p < target - best) best = p;
       });
+      const cut = best === null ? target : best;
       out.push({ start: a, end: cut });
       a = cut;
     }

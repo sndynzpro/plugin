@@ -407,7 +407,7 @@
   async function buildProxy() {
     if (!CEP.available) { toast('El proxy se crea dentro de Premiere. Aquí puedes «Cargar un vídeo exportado…»', 'warn', 5000); return; }
     if (proxying) return;
-    const ff = ffmpegBin();
+    const ff = ffmpegPath();
     if (!ff) {
       toast('Instala ffmpeg (Mac: brew install ffmpeg · Windows: winget install ffmpeg) o exporta un .mp4 de baja calidad desde Premiere y usa «Cargar un vídeo exportado…»', 'warn', 9000);
       return;
@@ -642,8 +642,7 @@
         const len = tlDrag.e - tlDrag.s, before = c.start;
         c.start = q(Math.max(0, tlDrag.s + d));
         c.end = c.start + len;
-        const dd = c.start - before;  // los tiempos reales por palabra se mueven con el bloque
-        if (dd) c.words.forEach(w => { if (typeof w.t0 === 'number') { w.t0 += dd; if (typeof w.t1 === 'number') w.t1 += dd; } });
+        shiftWords(c, c.start - before);  // los tiempos reales por palabra se mueven con el bloque
       }
       else if (tlDrag.mode === 'l') c.start = q(Math.max(0, Math.min(tlDrag.e - 0.1, tlDrag.s + d)));
       else c.end = q(Math.max(tlDrag.s + 0.1, tlDrag.e + d));
@@ -1067,6 +1066,15 @@
     toast('Subtítulos unidos', 'ok', 1600);
   }
 
+  /** Desplaza los tiempos reales de las palabras de un subtítulo (Whisper/JSON). */
+  function shiftWords(cue, d) {
+    if (!d) return;
+    cue.words.forEach(w => {
+      if (typeof w.t0 === 'number') w.t0 += d;
+      if (typeof w.t1 === 'number') w.t1 += d;
+    });
+  }
+
   function shiftAll() {
     const ms = +$('#tShift').value || 0;
     if (!ms || !S.cues.length) return;
@@ -1075,7 +1083,7 @@
     S.cues.forEach(c => {
       c.start = Math.max(0, c.start + d);
       c.end = Math.max(c.start + 0.05, c.end + d);
-      c.words.forEach(w => { if (typeof w.t0 === 'number') { w.t0 += d; w.t1 += d; } });
+      shiftWords(c, d);
     });
     onCuesReplaced();
     toast(`Subtítulos desplazados ${ms > 0 ? '+' : ''}${ms} ms`, 'ok');
@@ -2297,7 +2305,8 @@
   // ───────────── Herramientas: silencios ─────────────
   const audioCache = new Map();
 
-  function ffmpegBin() { return S.settings.ffmpeg || PX.findFfmpeg() || 'ffmpeg'; }
+  /** ffmpeg configurado o encontrado; null si no hay. */
+  function ffmpegPath() { return S.settings.ffmpeg || PX.findFfmpeg() || null; }
   const BIG_MEDIA = 300 * 1024 * 1024;
 
   async function decodeMedia(path) {
@@ -2305,13 +2314,13 @@
     let res;
     try {
       // Un vídeo de varios GB no se carga entero en memoria: se extrae el audio con ffmpeg
-      if (CEP.fs.size(path) > BIG_MEDIA && PX.findFfmpeg()) throw new Error('grande');
+      if (CEP.fs.size(path) > BIG_MEDIA && ffmpegPath()) throw new Error('grande');
       res = await AU.decodeArrayBuffer(CEP.fs.readBinary(path));
     } catch (err) {
-      if (CEP.fs.size(path) > BIG_MEDIA && !PX.findFfmpeg()) throw new Error('El archivo es muy grande para leerlo en el panel. Instala ffmpeg para analizar su audio.');
+      if (CEP.fs.size(path) > BIG_MEDIA && !ffmpegPath()) throw new Error('El archivo es muy grande para leerlo en el panel. Instala ffmpeg para analizar su audio.');
       // Códec no soportado por el panel → ffmpeg si está instalado
       const wav = `${CEP.fs.tmpDir()}/subtitleengine_${EXP.hash(path)}.wav`;
-      await CEP.fs.ffmpegToWav(path, wav, ffmpegBin());
+      await CEP.fs.ffmpegToWav(path, wav, ffmpegPath() || 'ffmpeg');
       res = await AU.decodeArrayBuffer(CEP.fs.readBinary(wav));
     }
     audioCache.set(path, res);
@@ -2401,10 +2410,12 @@
       if (!r || !r.ok) throw new Error((r && r.error) || 'Premiere no respondió');
       (r.warnings || []).forEach(w => toast(w, 'warn', 5000));
       if (s.mode !== 'markers') {
-        if (s.shift && S.cues.length) {
+        const done = Array.isArray(r.cut) ? r.cut : ranges;   // solo lo que Premiere cortó de verdad
+        if (r.stopped) toast('El corte se detuvo antes de terminar: los subtítulos se ajustan solo a lo cortado', 'warn', 7000);
+        if (s.shift && S.cues.length && done.length) {
           snapshot();
           const off = hostOffset();
-          const sorted = ranges.slice().sort((a, b) => a.start - b.start);
+          const sorted = done.slice().sort((a, b) => a.start - b.start);
           S.cues.forEach(c => {
             c.start = remapTime(c.start + off, sorted) - off;
             c.end = Math.max(c.start + 0.1, remapTime(c.end + off, sorted) - off);
@@ -2418,7 +2429,8 @@
         S.silences = [];
         audioCache.clear();
         renderSilences();
-        toast(`✓ ${r.done} silencios eliminados (${total.toFixed(1)} s)`, 'ok', 4000);
+        const cutTotal = done.reduce((a, x) => a + x.end - x.start, 0);
+        toast(`✓ ${r.done} silencios eliminados (${cutTotal.toFixed(1)} s)`, 'ok', 4000);
         confetti();
       } else toast(`✓ ${r.done} marcadores creados`, 'ok');
       refreshSeq(true);
@@ -2859,7 +2871,7 @@
     // Audio y ffmpeg
     add('Decodificador de audio', (window.AudioContext || window.webkitAudioContext) ? 'ok' : 'bad', 'Web Audio');
     if (CEP.available) {
-      const v = await CEP.fs.ffmpegVersion(ffmpegBin());
+      const v = await CEP.fs.ffmpegVersion(ffmpegPath() || 'ffmpeg');
       add('ffmpeg (respaldo para códecs)', v ? 'ok' : 'warn', v || 'No instalado. Solo hace falta si el panel no puede leer el audio de tus clips.');
     }
 
