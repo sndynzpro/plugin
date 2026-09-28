@@ -43,6 +43,10 @@
           <button data-fmt="ass">Subtítulos con estilo .ass</button>
         </div>
       </div>
+      <button class="btn" id="btnDraftTop" title="Vista previa rápida en Premiere: PNG fijos por palabra en una pista aparte">
+        <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+        <span class="lbl-long">Vista previa</span><span class="lbl-short">Prev</span>
+      </button>
       <button class="btn primary" id="btnExportTop">
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         <span class="lbl-long">Render a Timeline</span><span class="lbl-short">Render</span>
@@ -123,7 +127,10 @@
     </div>
     <div class="transport-2">
       <label class="pill-toggle" title="Sincroniza el cabezal con Premiere en ambos sentidos">
-        <input type="checkbox" id="chkSync"><span></span>Sync TC
+        <input type="checkbox" id="chkSync"><span></span>Seguir a Premiere
+      </label>
+      <label class="pill-toggle" title="Al pausar o mover el cabezal en Premiere, usa el fotograma real del timeline como fondo">
+        <input type="checkbox" id="chkLiveBg"><span></span>Timeline en vivo
       </label>
       <label class="pill-toggle" title="Muestra las zonas seguras del estilo">
         <input type="checkbox" id="chkSafe" checked><span></span>Zona segura
@@ -381,8 +388,8 @@
         <div class="two">
           <div class="field">
             <label>Fotogramas por segundo</label>
-            <select id="expFps">
-              <option value="auto">Secuencia</option>
+            <select id="expFps" title="El render usa siempre los fps exactos de la secuencia; esto solo afecta a la vista previa sin Premiere">
+              <option value="auto">Los de la secuencia</option>
               <option value="23.976">23.976</option><option value="24">24</option>
               <option value="25">25</option><option value="29.97">29.97</option>
               <option value="30">30</option><option value="50">50</option>
@@ -427,6 +434,14 @@
           </div>
         </div>
       </div>
+      <div class="field inline">
+        <label>Reemplazar el render anterior en la pista</label>
+        <label class="toggle"><input type="checkbox" id="expReplace" checked><span></span></label>
+      </div>
+      <button class="btn big" id="btnDraft" title="PNG fijos por palabra: se generan en segundos para ver el resultado a velocidad real en Premiere">
+        <svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+        Vista previa rápida en Premiere
+      </button>
       <button class="btn primary big" id="btnExport">
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         Render a Timeline

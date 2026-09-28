@@ -44,22 +44,40 @@
     const ctx = canvas.getContext('2d');
 
     const plan = [];
-    opts.layers.forEach((L, layer) => L.chunks.forEach(ch => {
-      const f0 = Math.round(ch.start * fps);
-      const f1 = Math.max(f0 + 1, Math.round(ch.end * fps));
-      const n = f1 - f0;
-      // ¿Todos los fotogramas son idénticos? → PNG estático
-      let still = opts.mode !== 'sequence';
-      if (still) {
-        const k0 = R.frameKey(ch, f0 / fps, L.style);
-        for (let f = 1; still && f < n; f++) {
-          const k = R.frameKey(ch, (f0 + f) / fps, L.style);
-          if (k === null || k !== k0) still = false;
+    opts.layers.forEach((L, layer) => {
+      let prevEnd = -Infinity; // en fotogramas: nunca dos clips de la misma capa se solapan
+      L.chunks.slice().sort((x, y) => x.start - y.start).forEach(ch => {
+        const f0 = Math.max(prevEnd, Math.round(ch.start * fps));
+        const f1 = Math.round(ch.end * fps);
+        if (f1 <= f0) return;                 // bloque más corto que un fotograma
+        prevEnd = f1;
+        const n = f1 - f0;
+        if (opts.mode === 'draft') {
+          // Vista previa rápida: un PNG fijo por palabra (el karaoke se ve, sin animación)
+          const cuts = [f0];
+          ch.words.forEach(w => { const f = Math.round(w.ws * fps); if (f > cuts[cuts.length - 1] && f < f1) cuts.push(f); });
+          // Se compara el final de cada tramo (animaciones ya asentadas); null = no se puede asegurar
+          const keys = cuts.map((c, i) => R.frameKey(ch, ((cuts[i + 1] || f1) - 0.5) / fps, L.style));
+          const staticChunk = keys.every(k => k !== null && k === keys[0]);
+          (staticChunk ? [f0] : cuts).forEach((a, i, arr) => {
+            const z = staticChunk ? f1 : (arr[i + 1] || f1);
+            plan.push({ ch, style: L.style, layer, f0: a, n: z - a, still: true, t: Math.max(a, z - 1) / fps + 0.25 / fps, seg: i });
+          });
+          return;
         }
-        if (k0 === null) still = false;
-      }
-      plan.push({ ch, style: L.style, layer, f0, n, still });
-    }));
+        // ¿Todos los fotogramas son idénticos? → PNG estático
+        let still = opts.mode !== 'sequence';
+        if (still) {
+          const k0 = R.frameKey(ch, f0 / fps, L.style);
+          for (let f = 1; still && f < n; f++) {
+            const k = R.frameKey(ch, (f0 + f) / fps, L.style);
+            if (k === null || k !== k0) still = false;
+          }
+          if (k0 === null) still = false;
+        }
+        plan.push({ ch, style: L.style, layer, f0, n, still, t: f0 / fps, seg: 0 });
+      });
+    });
     plan.sort((a, b) => a.f0 - b.f0 || a.layer - b.layer);
 
     const total = plan.reduce((a, p) => a + (p.still ? 1 : p.n), 0);
@@ -69,11 +87,11 @@
 
     CEP.fs.mkdirp(outDir);
     for (let i = 0; i < plan.length; i++) {
-      const { ch, style, layer, f0, n, still } = plan[i];
+      const { ch, style, layer, f0, n, still, t: tStill, seg } = plan[i];
       const tc = SRT.toTC(f0 / fps, fps).replace(/:/g, '-');
-      const base = `${pad(i + 1, 4)}_${tc}_${chunkHash(ch, style, W, H, fps, n)}`;
+      const base = `${pad(i + 1, 4)}_${tc}_${hash(chunkHash(ch, style, W, H, fps, n) + '|' + (opts.mode === 'draft' ? 'd' + seg + ':' + tStill.toFixed(4) : ''))}`;
       const label = ch.words.map(w => w.ref.text).join(' ');
-      const name = `${pad(i + 1, 3)} · ${label.slice(0, 40)}`;
+      const name = `${opts.namePrefix || 'SE· '}${layer ? 'L' + (layer + 1) + ' ' : ''}${pad(i + 1, 3)} · ${label.slice(0, 40)}`;
 
       if (still) {
         const path = `${outDir}/${base}.png`;
@@ -81,12 +99,12 @@
         else {
           if (opts.isCancelled && opts.isCancelled()) throw new Error('CANCELLED');
           ctx.clearRect(0, 0, W, H);
-          R.renderChunk(ctx, W, H, ch, f0 / fps, style);
+          R.renderChunk(ctx, W, H, ch, tStill, style);
           CEP.fs.writeFile(path, await CEP.fs.encodePNG(canvas));
           encoded++;
         }
         done++;
-        items.push({ path, start: f0 / fps, dur: n / fps, frames: n, name, layer, still: true });
+        items.push({ path, f0, frames: n, start: f0 / fps, dur: n / fps, name, layer, still: true });
         if (done % 4 === 0) { opts.onProgress && opts.onProgress(done, total, label); await nextTick(); }
         continue;
       }
@@ -123,7 +141,7 @@
           }
         }
       }
-      items.push({ path: first, start: f0 / fps, dur: n / fps, frames: n, name, layer, still: false });
+      items.push({ path: first, f0, frames: n, start: f0 / fps, dur: n / fps, name, layer, still: false });
     }
     opts.onProgress && opts.onProgress(total, total, '');
     return { items, total, encoded, cached };

@@ -160,6 +160,36 @@ function wav(file, secs, spans) {
     return `${a.items.length} estático · ${h.items.length} secuencias (${h.total} fotogramas)`;
   }));
 
+  // 4b. Sincronía: fotogramas enteros, sin solapes, fps no enteros y vista previa rápida
+  await check('fotogramas exactos y vista previa rápida', () => page.evaluate(async () => {
+    const files = {}, CEP = window.SubFX_CEP;
+    Object.assign(CEP.fs, { mkdirp() {}, writeFile(p) { files[p] = 1; }, exists: p => !!files[p], encodePNG: async () => 'x' });
+    const R = window.SubFX_Renderer, ST = window.SubFX_Styles, EXP = window.SubFX_Exporter;
+    const W = t => t.split(' ').map((x, i) => ({ id: 'w' + i + x, text: x, ovr: {} }));
+    const cues = [
+      { id: 'a', start: 0.013, end: 1.4671, words: W('uno dos tres') },
+      { id: 'b', start: 1.4671, end: 1.4801, words: W('corto') },          // menos de un fotograma
+      { id: 'c', start: 1.49, end: 3.333, words: W('cuatro cinco seis siete') }
+    ];
+    const fps = 30000 / 1001;
+    const check = items => {
+      items.forEach(i => { if (!Number.isInteger(i.f0) || !Number.isInteger(i.frames) || i.frames < 1) throw new Error('fotogramas no enteros'); });
+      const s = items.slice().sort((a, b) => a.f0 - b.f0);
+      for (let i = 1; i < s.length; i++) if (s[i].f0 < s[i - 1].f0 + s[i - 1].frames) throw new Error(`solape ${s[i - 1].f0}+${s[i - 1].frames} > ${s[i].f0}`);
+      return s;
+    };
+    const st = ST.make(ST.PRESETS.find(p => p.id === 'hormozi'));
+    const chunks = R.buildChunks(cues, st);
+    const full = check((await EXP.render({ layers: [{ style: st, chunks }], W: 1080, H: 1920, fps, outDir: '/f', mode: 'auto' })).items);
+    const draft = check((await EXP.render({ layers: [{ style: st, chunks }], W: 1080, H: 1920, fps, outDir: '/d', mode: 'draft', namePrefix: 'SE·prev ' })).items);
+    if (!draft.every(i => i.still)) throw new Error('la vista previa debe ser solo PNG fijos');
+    const endF = a => a[a.length - 1].f0 + a[a.length - 1].frames;
+    if (draft[0].f0 !== full[0].f0 || endF(draft) !== endF(full)) throw new Error('la vista previa no cubre el mismo rango que el render final');
+    if (draft.length <= full.length) throw new Error('la vista previa debería tener un PNG por palabra');
+    if (!/^SE·prev \d{3} · /.test(draft[0].name)) throw new Error('nombre de vista previa: ' + draft[0].name);
+    return `${full.length} clips finales · ${draft.length} PNG de vista previa · 29.97 fps`;
+  }));
+
   // 5. Importar ASS con dos hablantes → dos capas
   await check('importa .ass con 2 hablantes en 2 capas', async () => {
     await page.setInputFiles('#fileSrt', path.join(ROOT, 'tests', 'fixtures', 'dos-hablantes.ass'));

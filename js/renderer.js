@@ -458,8 +458,9 @@
     // Sombras múltiples: se rasteriza la silueta una vez y se proyecta cada sombra
     const shadows = shadowsOf(st);
     if (shadows.length) {
-      const m = ext3 + 2;
-      const lw = width + m * 2, lh = fs * 1.7 + m * 2;
+      // Margen generoso: cursivas, acentos y descendentes nunca se recortan
+      const m = ext3 + 2 + fs * (st.italic ? 0.35 : 0.1);
+      const lw = width + m * 2, lh = fs * 2.2 + m * 2;
       const pw = Math.ceil(lw * k), ph = Math.ceil(lh * k);
       const sp = sprite(pw, ph);
       sp.x.setTransform(k, 0, 0, k, (m - x0) * k, lh / 2 * k);
@@ -514,8 +515,8 @@
 
     // Relleno (+ contorno interior o centrado)
     if (sw1 > 0 && align === 'inside') {
-      const m = 2;
-      const lw = width + m * 2, lh = fs * 1.7;
+      const m = 2 + fs * (st.italic ? 0.35 : 0.1);
+      const lw = width + m * 2, lh = fs * 2.2;
       const pw = Math.ceil(lw * k), ph = Math.ceil(lh * k);
       const sp = sprite(pw, ph);
       sp.x.setTransform(k, 0, 0, k, (m - x0) * k, lh / 2 * k);

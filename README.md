@@ -25,6 +25,13 @@ La implementación sigue `SubtitleEngine_Pro_Plan_Arquitectura.pdf`.
 - **Tiempos** (Herramientas): desplazar todo, duración mínima/máxima, separación, velocidad de lectura y **Bloques → subtítulos** para exportar un `.srt` ya cortado. **Dividir** y **Unir** en la lista.
 - **JSON de Whisper** con tiempos por palabra: karaoke exacto en lugar de repartir el tiempo.
 
+### Sincronía y vista en tiempo real
+
+- **Al fotograma exacto**: los PNG se colocan en ticks de la secuencia (29.97 = 30000/1001, no 29.97), sin solapes ni huecos, y a la resolución exacta de la secuencia (escala 100 %, píxel cuadrado). Si la resolución no coincide o falta una fuente, el panel avisa antes de renderizar.
+- **Seguir a Premiere**: el panel sigue la reproducción del timeline a 60 fps (predice la posición entre consultas y compensa la latencia) y dibuja el mismo fotograma que muestra Premiere.
+- **Timeline en vivo**: al pausar, el fondo del panel es el fotograma real del timeline.
+- **Vista previa rápida**: PNG fijos por palabra en la pista «SubtitleEngine Preview», generados en segundos, para verlo a velocidad real en el monitor de programa. Se reemplaza cada vez.
+
 ### Presets incluidos
 
 - **30X Media** (Playbook): *30X Default* (Inter Bold, `#F6F5F0`, minúsculas, centrado, sombra negra 65 %, palabra clave `#FAFF96`, márgenes 250 / 380 px en 1080×1920), *30X Hook* (MAYÚSCULAS, alineado a la izquierda), *30X Speaker 2* (amarillo, para clips bicolor) y *30X Portada*.

@@ -77,7 +77,8 @@ var SubFX = (function () {
             try { playhead = seq.getPlayerPosition().seconds; } catch (e4) {}
             return toJSON({
                 ok: true, name: seq.name, width: w, height: h,
-                fps: Math.round(fps * 1000) / 1000, playhead: playhead, tracks: tracks, audioTracks: atracks
+                fps: fps, fpsLabel: Math.round(fps * 1000) / 1000, timebase: Number(seq.timebase),
+                playhead: playhead, tracks: tracks, audioTracks: atracks
             });
         } catch (e) {
             return fail(e.toString());
@@ -149,36 +150,74 @@ var SubFX = (function () {
         return idx;
     }
 
-    function placeAt(track, item, seconds) {
-        try { track.overwriteClip(item, seconds); return true; } catch (e) {}
-        try { track.overwriteClip(item, mkTime(seconds)); return true; } catch (e2) { return false; }
+    function mkTicks(ticks) { var t = new Time(); t.ticks = String(Math.round(ticks)); return t; }
+    function ticksOf(t) { return t ? Number(t.ticks) : 0; }
+
+    function placeAt(track, item, ticks) {
+        try { track.overwriteClip(item, mkTicks(ticks)); return true; } catch (e) {}
+        try { track.overwriteClip(item, ticks / TICKS); return true; } catch (e2) { return false; }
     }
 
-    /** Ajusta la duración de un PNG estático ya colocado. */
-    function trimStill(track, start, dur) {
+    /** Clip de la pista que empieza exactamente en `ticks` (tolerancia: medio fotograma). */
+    function clipAt(track, ticks, tb) {
         for (var i = track.clips.numItems - 1; i >= 0; i--) {
             var c = track.clips[i];
-            if (Math.abs(secs(c.start) - start) < 0.01) {
-                try { c.end = mkTime(start + dur); } catch (e) { try { c.end = start + dur; } catch (e2) {} }
-                return Math.abs(secs(c.end) - (start + dur)) < 0.05;
-            }
+            if (Math.abs(ticksOf(c.start) - ticks) < tb / 2) return c;
         }
-        return false;
+        return null;
+    }
+
+    /** Quita de la pista los clips cuyo nombre empieza por `prefix` (vista previa anterior). */
+    function removeByPrefix(track, prefix) {
+        var n = 0;
+        for (var i = track.clips.numItems - 1; i >= 0; i--) {
+            var c = track.clips[i];
+            if (String(c.name).indexOf(prefix) === 0) { try { c.remove(false, false); n++; } catch (e) {} }
+        }
+        return n;
     }
 
     /**
-     * payload = { binName, fps, tracks: [índice por capa, -1 = nueva], trackName,
-     *             items: [{ path, start, dur, name, layer, still }] }
+     * Pista propia de la vista previa: por nombre o porque ya contiene clips de vista previa
+     * de esa capa («SE·prev 001…» para la capa 1, «SE·prev L2 001…» para la 2). -1 si no hay.
+     */
+    function findOwnTrack(seq, name, prefix, layer) {
+        var i, j, t, n;
+        for (i = 0; i < seq.videoTracks.numTracks; i++) if (seq.videoTracks[i].name === name) return i;
+        if (!prefix) return -1;
+        var tag = prefix + ' ' + (layer ? 'L' + (layer + 1) + ' ' : '');
+        for (i = 0; i < seq.videoTracks.numTracks; i++) {
+            t = seq.videoTracks[i];
+            for (j = 0; j < t.clips.numItems; j++) {
+                n = String(t.clips[j].name);
+                if (n.indexOf(tag) === 0 && (layer || /^[0-9]/.test(n.substring(tag.length)))) return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Coloca los PNG al fotograma exacto (en ticks de la secuencia).
+     * payload = { binName, tracks: [índice por capa, -1 = nueva], trackName, anchorSec, clearPrefix,
+     *             width, height, items: [{ path, f0, frames, name, layer, still }] }
+     * f0 y frames son fotogramas de la secuencia contados desde anchorSec.
      */
     function importAndPlace(payloadStr) {
         try {
             var p = parse(payloadStr);
             var seq = activeSeq();
             var warnings = [];
+            var tb = Number(seq.timebase);          // ticks por fotograma
+            var fps = TICKS / tb;
+            var anchor = Math.round((p.anchorSec || 0) * fps);
+            var sameSize = !p.width || (p.width === seq.frameSizeHorizontal && p.height === seq.frameSizeVertical);
+            if (!sameSize) warnings.push('Los PNG (' + p.width + 'x' + p.height + ') no miden lo mismo que la secuencia; Premiere los escalará.');
+
             var tracks = p.tracks || [p.trackIndex];
             var resolved = [];
             for (var l = 0; l < tracks.length; l++) {
                 var ti = tracks[l];
+                if (ti === -2) ti = findOwnTrack(seq, p.trackName + (l ? ' ' + (l + 1) : ''), p.clearPrefix, l);
                 if (ti < 0) {
                     ti = addVideoTrack(p.trackName ? p.trackName + (l ? ' ' + (l + 1) : '') : '');
                     if (ti < 0) {
@@ -190,9 +229,11 @@ var SubFX = (function () {
                 if (ti >= seq.videoTracks.numTracks) ti = seq.videoTracks.numTracks - 1;
                 resolved.push(ti);
             }
+            var removed = 0;
+            if (p.clearPrefix) for (var r = 0; r < resolved.length; r++) removed += removeByPrefix(seq.videoTracks[resolved[r]], p.clearPrefix);
 
             var bin = findOrCreateBin(p.binName);
-            var placed = 0;
+            var placed = 0, offFrame = 0;
             for (var i = 0; i < p.items.length; i++) {
                 var item = p.items[i];
                 var track = seq.videoTracks[resolved[item.layer || 0] != null ? resolved[item.layer || 0] : resolved[0]];
@@ -200,24 +241,32 @@ var SubFX = (function () {
                 app.project.importFiles([path], true, bin, !item.still); // secuencia numerada salvo PNG estático
                 var pi = findItem(bin, path);
                 if (!pi) { warnings.push('No se encontró el clip importado: ' + item.name); continue; }
-                if (item.still) {
-                    try { pi.setInPoint(0, 4); pi.setOutPoint(item.dur, 4); } catch (e0) {}
-                } else {
-                    try {
-                        var interp = pi.getFootageInterpretation();
-                        interp.frameRate = p.fps;
-                        pi.setFootageInterpretation(interp);
-                    } catch (e1) { /* versiones antiguas */ }
-                }
+                try {
+                    var interp = pi.getFootageInterpretation();
+                    if (!item.still) interp.frameRate = fps;   // fps exacto de la secuencia (29.97002997…)
+                    interp.pixelAspectRatio = 1;
+                    pi.setFootageInterpretation(interp);
+                } catch (e1) { /* versiones antiguas */ }
+                if (item.still) { try { pi.setInPoint(0, 4); pi.setOutPoint(item.frames / fps, 4); } catch (e0) {} }
                 try { pi.name = item.name; } catch (e2) {}
-                if (placeAt(track, pi, item.start)) {
-                    placed++;
-                    if (item.still && !trimStill(track, item.start, item.dur)) {
-                        if (warnings.length < 5) warnings.push('Revisa la duración de: ' + item.name);
-                    }
-                } else warnings.push('No se pudo colocar: ' + item.name);
+
+                var startT = (anchor + item.f0) * tb, endT = (anchor + item.f0 + item.frames) * tb;
+                if (!placeAt(track, pi, startT)) { warnings.push('No se pudo colocar: ' + item.name); continue; }
+                placed++;
+                var c = clipAt(track, startT, tb);
+                if (!c) { offFrame++; continue; }
+                try { c.name = item.name; } catch (e3) {}
+                if (Math.abs(ticksOf(c.end) - endT) >= tb / 2) {
+                    try { c.end = mkTicks(endT); } catch (e4) {}
+                    if (Math.abs(ticksOf(c.end) - endT) >= tb / 2) offFrame++;
+                }
+                if (sameSize) {
+                    // 1:1 con la secuencia: escala 100 y centrado (evita «Escalar al tamaño del fotograma»)
+                    try { var m = motionOf(c); if (m && Number(m.properties[1].getValue()) !== 100) m.properties[1].setValue(100, true); } catch (e5) {}
+                }
             }
-            return toJSON({ ok: true, placed: placed, tracks: resolved, warnings: warnings });
+            if (offFrame) warnings.push(offFrame + ' clip(s) no quedaron en el fotograma exacto; revísalos.');
+            return toJSON({ ok: true, placed: placed, removed: removed, tracks: resolved, fps: fps, warnings: warnings });
         } catch (e) {
             return fail(e.toString());
         }

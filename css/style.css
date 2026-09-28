@@ -543,6 +543,10 @@ input[type=range]:active::-webkit-slider-thumb { transform: scale(1.35); backgro
 .tl-cue { transition: opacity .2s, outline-color .2s; }
 .tl-s { animation: fadeIn .4s var(--smooth); }
 
+/* Siguiendo la reproducción de Premiere */
+.host-playing .timecode::after { content: "● EN VIVO"; margin-left: 8px; font-size: 10px; font-weight: 600; letter-spacing: .08em; color: var(--err); vertical-align: 3px; animation: livePulse 1.2s ease-in-out infinite; }
+@keyframes livePulse { 50% { opacity: .35; } }
+
 /* Confeti de celebración */
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 70; }
 

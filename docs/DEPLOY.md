@@ -81,7 +81,11 @@ Usa una secuencia de prueba (duplica la tuya). Todo se deshace con `Ctrl+Z` en P
 | 3 | Preset *Hormozi* y render | Clips de secuencia PNG con la palabra activa animada. |
 | 4 | Importar `tests/fixtures/dos-hablantes.ass` y render | Dos pistas (una por hablante), blanco y amarillo. |
 | 5 | Repetir el render sin cambios | Mensaje «N reutilizados»: no vuelve a generar PNG. |
-| 6 | **Sync TC** activado: mover el cabezal en Premiere y luego en el panel | Los dos cabezales se siguen. |
+| 6 | **Seguir a Premiere** activado: reproducir en Premiere (también con J/K/L) y mover el cabezal desde el panel | El panel avanza fluido junto a Premiere, muestra «● EN VIVO» y el timecode coincide al fotograma. |
+| 6b | **Timeline en vivo**: pausar en varios puntos | El fondo del panel pasa a ser el fotograma real del timeline en menos de un segundo. |
+| 6c | **Vista previa** (botón de arriba) dos veces seguidas | Se crea la pista «SubtitleEngine Preview» y la segunda vez se reemplaza, sin pistas duplicadas. |
+| 6d | Render final en una secuencia de 29.97 fps de más de 10 min | Cada clip empieza y termina en un fotograma entero; al final no hay deriva respecto al audio. |
+| 6e | Elegir una resolución distinta a la de la secuencia y renderizar | Aviso que ofrece usar la resolución de la secuencia (sin escalado ni deformación). |
 | 7 | **Capturar fotograma** | El fotograma de Premiere aparece de fondo en la vista previa. |
 | 8 | Herramientas → Silencios → **Analizar** (acción *Solo marcadores*) | Marcadores «Silencio» en las pausas reales. |
 | 9 | Silencios con *Ripple delete* | Pausas eliminadas en todas las pistas sin desincronizar vídeo y audio; subtítulos reajustados. |

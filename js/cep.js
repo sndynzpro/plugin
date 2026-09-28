@@ -129,6 +129,26 @@
     });
   }
 
+  function size(path) {
+    try { if (nodeFs) return nodeFs.statSync(path).size; } catch (e) { return -1; }
+    return exists(path) ? 1 : -1;
+  }
+  function remove(path) {
+    try { if (nodeFs) nodeFs.unlinkSync(path); else if (cepFs) cepFs.deleteFile(path); } catch (e) { /* no existe */ }
+  }
+  /** Espera a que un archivo exista y su tamaño deje de cambiar (terminado de escribir). */
+  async function waitStable(path, ms) {
+    const t0 = Date.now();
+    let last = -2;
+    while (Date.now() - t0 < (ms || 4000)) {
+      const sz = size(path);
+      if (sz > 0 && sz === last) return true;
+      last = sz;
+      await new Promise(r => setTimeout(r, 60));
+    }
+    return false;
+  }
+
   /** Espera a que exista un archivo (p. ej. el fotograma que exporta Premiere). */
   async function waitFile(path, ms) {
     const t0 = Date.now();
@@ -168,7 +188,7 @@
     available: !!host,
     canWrite: !!(nodeFs || cepFs),
     evalScript, call, systemPath, extensionPath,
-    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, ffmpegToWav, ffmpegVersion },
+    fs: { mkdirp, encodePNG, writeFile, exists, readBinary, readDataURL, tmpDir, waitFile, waitStable, size, remove, ffmpegToWav, ffmpegVersion },
     hasNode: !!nodeFs,
     pickFolder, openFolder, registerKeys
   };

@@ -55,7 +55,7 @@
     seq: null,
     silences: [],
     settings: {
-      format: 'auto', fps: 'auto', track: -1, startMode: 'zero', offset: 0, outDir: '', bg: 'scene', mode: 'auto',
+      replace: true, format: 'auto', fps: 'auto', track: -1, startMode: 'zero', offset: 0, outDir: '', bg: 'scene', mode: 'auto',
       safe: true,
       sil: { threshold: -38, minDur: 0.4, padIn: 0.06, padOut: 0.09, mode: 'ripple', track: 0, shift: true },
       zoom: { min: 100, max: 120, trigger: 'cut', direction: 'in', easing: 'smooth', frames: 8, interval: 2.5, focal: 'face', fx: 50, fy: 33, scope: 'selected', track: 0, replace: true }
@@ -251,9 +251,12 @@
   let liveCue = null, liveWord = null;
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const active = R.renderLayers(ctx, canvas.width, canvas.height, layerData, S.time);
+    // Se dibuja el fotograma exacto que muestra Premiere en ese instante (sin interpolar)
+    const fps = seqFps();
+    const tq = Math.floor(S.time * fps + 1e-6) / fps;
+    const active = R.renderLayers(ctx, canvas.width, canvas.height, layerData, tq);
     if (S.settings.safe) drawSafeGuides();
-    $('#timeLabel').textContent = fmtTC(S.time);
+    $('#timeLabel').textContent = fmtTC(tq);
     $('#tlHead').style.left = (S.time / duration * 100) + '%';
 
     const ch = active.find(c => c.layer === S.editLayer) || active[0];
@@ -281,7 +284,8 @@
   function tick(ts) {
     const dt = lastTs ? Math.min(0.1, (ts - lastTs) / 1000) : 0;
     lastTs = ts;
-    if (S.playing) {
+    if (followHost(ts)) dirty = true;
+    else if (S.playing) {
       S.time += dt;
       const end = S.playEnd != null ? S.playEnd : duration;
       if (S.time >= end) {
@@ -318,27 +322,79 @@
   }
 
   // ───────────── Sincronía con el cabezal de Premiere ─────────────
-  let syncTimer = null, lastHostT = null, pushing = false;
+  /*
+   * Premiere no avisa cuando se mueve el cabezal: se pregunta cada 100 ms y, entre
+   * muestras, se predice la posición con la velocidad medida (dead reckoning). Así el
+   * panel se mueve a 60 fps junto a la reproducción. La latencia de cada consulta se
+   * compensa tomando el instante medio entre envío y respuesta.
+   */
+  const SYNC_MS = 100;
+  const HOST = { on: false, timer: null, t: null, wall: 0, rate: 0, pushing: 0, busy: false, still: 0, grabbedAt: null };
   const hostOffset = () => S.settings.offset / 1000 + (S.settings.startMode === 'playhead' && S.seq ? S.seq.anchor || 0 : 0);
   const pushPlayhead = debounce(() => {
-    if (!$('#chkSync').checked || !CEP.available) return;
-    pushing = true;
-    CEP.call('setPlayhead', String(S.time + hostOffset())).finally(() => { setTimeout(() => { pushing = false; }, 300); });
-  }, 60);
+    if (!HOST.on || !CEP.available) return;
+    HOST.pushing = performance.now();
+    CEP.call('setPlayhead', String(S.time + hostOffset())).catch(() => null);
+  }, 40);
+
+  async function pollHost() {
+    if (HOST.busy || tlDrag || performance.now() - HOST.pushing < 250) return;
+    HOST.busy = true;
+    const sent = performance.now();
+    const r = await CEP.call('getPlayhead').catch(() => null);
+    const got = performance.now();
+    HOST.busy = false;
+    if (!r || !r.ok || !HOST.on) return;
+    const wall = (sent + got) / 2;
+    if (HOST.t !== null) {
+      const dWall = (wall - HOST.wall) / 1000, dT = r.t - HOST.t;
+      const rate = dWall > 0 ? dT / dWall : 0;
+      // Reproducción: avanza a velocidad ~constante (J/K/L también: ±1, ±2, ±4…)
+      HOST.rate = Math.abs(dT) < 1e-4 ? 0 : (Math.abs(rate) > 0.2 && Math.abs(rate) < 9 ? rate : 0);
+    }
+    HOST.still = HOST.rate === 0 ? HOST.still + 1 : 0;
+    HOST.t = r.t;
+    HOST.wall = wall;
+    if (HOST.rate === 0) {
+      seek(r.t - hostOffset(), true);
+      if (HOST.still === 2 && $('#chkLiveBg').checked && HOST.grabbedAt !== r.t) liveGrab(r.t);
+    }
+    document.body.classList.toggle('host-playing', HOST.rate !== 0);
+  }
+
+  /** Posición prevista del cabezal de Premiere (se llama en cada fotograma del panel). */
+  function followHost(now) {
+    if (!HOST.on || HOST.t === null || HOST.rate === 0 || S.playing) return false;
+    const t = HOST.t + HOST.rate * Math.min(1, (now - HOST.wall) / 1000) - hostOffset();
+    S.time = Math.max(0, Math.min(duration, t));
+    return true;
+  }
 
   function setSync(on) {
-    clearInterval(syncTimer);
+    clearInterval(HOST.timer);
+    HOST.on = false;
+    HOST.t = null;
+    document.body.classList.remove('host-playing');
     if (!on) return;
     if (!CEP.available) { toast('Sync TC funciona dentro de Premiere Pro', 'warn'); $('#chkSync').checked = false; return; }
-    syncTimer = setInterval(async () => {
-      if (S.playing || pushing || tlDrag) return;
-      const r = await CEP.call('getPlayhead').catch(() => null);
-      if (!r || !r.ok) return;
-      if (lastHostT === null || Math.abs(r.t - lastHostT) > 0.001) {
-        lastHostT = r.t;
-        seek(r.t - hostOffset(), true);
-      }
-    }, 250);
+    HOST.on = true;
+    HOST.timer = setInterval(pollHost, SYNC_MS);
+    pollHost();
+  }
+
+  /** Fondo en vivo: fotograma real del timeline cada vez que el cabezal se detiene. */
+  let liveFile = null;
+  async function liveGrab(t) {
+    HOST.grabbedAt = t;
+    const path = `${CEP.fs.tmpDir()}/subtitleengine_live_${Date.now()}.png`;
+    try {
+      const r = await CEP.call('exportFrame', path);
+      if (!r || !r.ok || !(await CEP.fs.waitStable(path, 3000))) return;
+      if (HOST.t !== t) { CEP.fs.remove(path); return; } // el cabezal ya se movió
+      setBgImage(CEP.fs.readDataURL(path));
+      if (liveFile) CEP.fs.remove(liveFile);
+      liveFile = path;
+    } catch (e) { /* se intenta en la siguiente pausa */ }
   }
 
   // ───────────── Línea de tiempo (arrastrar y recortar) ─────────────
@@ -459,8 +515,7 @@
       const path = `${CEP.fs.tmpDir()}/subtitleengine_frame_${Date.now()}.png`;
       const r = await CEP.call('exportFrame', path);
       if (!r || !r.ok) throw new Error((r && r.error) || 'Premiere no respondió');
-      if (!(await CEP.fs.waitFile(path, 5000))) throw new Error('Premiere no generó el fotograma');
-      await new Promise(res => setTimeout(res, 200));
+      if (!(await CEP.fs.waitStable(path, 5000))) throw new Error('Premiere no generó el fotograma');
       setBgImage(CEP.fs.readDataURL(path));
       toast('Fotograma de Premiere como fondo', 'ok');
     } catch (err) { toast('No se pudo capturar: ' + err.message, 'err', 5000); }
@@ -2150,7 +2205,7 @@
       box.appendChild(top);
       if (S.seq) {
         const meta = el('div', 'seq-meta');
-        [['Resolución', `${S.seq.width}×${S.seq.height}`], ['Fps', String(S.seq.fps)], ['Pistas', `${S.seq.tracks.length}V · ${(S.seq.audioTracks || []).length}A`]]
+        [['Resolución', `${S.seq.width}×${S.seq.height}`], ['Fps', String(S.seq.fpsLabel || S.seq.fps)], ['Pistas', `${S.seq.tracks.length}V · ${(S.seq.audioTracks || []).length}A`]]
           .forEach(([k, v]) => { const d = el('div', 'stat'); d.appendChild(el('small', null, k)); d.appendChild(el('b', null, v)); meta.appendChild(d); });
         box.appendChild(meta);
       } else {
@@ -2228,8 +2283,13 @@
       const dir = CEP.pickFolder('Carpeta de renderizado de SubtitleEngine', S.settings.outDir || CEP.systemPath('myDocuments'));
       if (dir) { S.settings.outDir = dir; $('#expDir').value = dir; saveSession(); }
     });
-    $('#btnExport').addEventListener('click', runExport);
+    $('#btnExport').addEventListener('click', () => runExport());
     $('#btnExportTop').addEventListener('click', () => { switchTab('export'); runExport(); });
+    $('#btnDraft').addEventListener('click', () => runExport({ draft: true }));
+    $('#btnDraftTop').addEventListener('click', () => runExport({ draft: true }));
+    const rep = $('#expReplace');
+    rep.checked = S.settings.replace !== false;
+    rep.addEventListener('change', () => { S.settings.replace = rep.checked; saveSession(); });
     $('#btnCancel').addEventListener('click', () => { cancelExport = true; });
     $('#btnDiag').addEventListener('click', runDiagnostics);
     $('#btnDiagCopy').addEventListener('click', copyDiagnostics);
@@ -2243,7 +2303,26 @@
     });
   }
 
-  async function runExport() {
+  /** Comprueba que las fuentes de las capas estén cargadas (si no, el render saldría con otra). */
+  async function missingFonts() {
+    if (!document.fonts) return [];
+    const out = [];
+    for (let i = 0; i < S.layers.length; i++) {
+      const st = layerStyle(i);
+      const spec = `${st.italic ? 'italic ' : ''}${st.weight} 40px "${st.font}"`;
+      try { await document.fonts.load(spec); } catch (e) { /* sigue */ }
+      if (!document.fonts.check(spec) && out.indexOf(st.font) === -1) out.push(st.font);
+    }
+    return out;
+  }
+
+  /**
+   * Render a la línea de tiempo.
+   *  draft = true → vista previa rápida: un PNG fijo por palabra en la pista «SubtitleEngine Preview»,
+   *                  que se reemplaza en cada vista previa.
+   */
+  async function runExport(opts) {
+    const draft = !!(opts && opts.draft);
     if (exporting) return;
     if (!S.cues.length) { toast('Importa primero un archivo .srt', 'warn'); return; }
     if (!CEP.available) {
@@ -2255,18 +2334,27 @@
     if (!seq) { toast('Abre una secuencia en Premiere antes de exportar', 'err'); return; }
 
     const s = S.settings;
-    const { W, H } = frameSize();
-    const fps = s.fps === 'auto' ? (seq.fps || 30) : +s.fps;
+    let { W, H } = frameSize();
+    // Sin deformaciones: los PNG deben medir exactamente lo mismo que la secuencia
+    if (seq.width && seq.height && (W !== seq.width || H !== seq.height)) {
+      const ok = window.confirm(`La resolución elegida (${W}×${H}) no coincide con la secuencia (${seq.width}×${seq.height}). Premiere escalaría los subtítulos.\n\n¿Renderizar a ${seq.width}×${seq.height}?`);
+      if (!ok) return;
+      W = seq.width; H = seq.height;
+    }
+    const lost = await missingFonts();
+    if (lost.length && !window.confirm(`No se encontró la fuente ${lost.join(', ')}. El render usaría otra fuente.\n\n¿Continuar de todos modos?`)) return;
+
+    // Fotogramas: siempre los exactos de la secuencia (29.97 = 30000/1001, no 29.97)
+    const fps = seq.fps || 30;
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 15);
-    const outDir = (s.outDir || (CEP.systemPath('myDocuments') + '/SubtitleEngine Renders')).replace(/\/+$/, '');
-    const startAt = (s.startMode === 'playhead' ? seq.playhead : 0) + s.offset / 1000;
+    const outDir = (s.outDir || (CEP.systemPath('myDocuments') + '/SubtitleEngine Renders')).replace(/\/+$/, '') + (draft ? '/preview' : '');
+    const anchorSec = Math.max(0, (s.startMode === 'playhead' ? seq.playhead : 0) + s.offset / 1000);
     const usedLayers = S.layers.map((l, i) => i).filter(i => S.cues.some(c => (c.layer || 0) === i));
     const maxLayer = Math.max(0, ...usedLayers);
 
     exporting = true;
     cancelExport = false;
-    $('#btnExport').disabled = true;
-    $('#btnExportTop').disabled = true;
+    ['#btnExport', '#btnExportTop', '#btnDraft', '#btnDraftTop'].forEach(id => { const b = $(id); if (b) b.disabled = true; });
     $('#expProgress').hidden = false;
     const bar = $('#expBar'), status = $('#expStatus');
     bar.style.width = '0%';
@@ -2274,38 +2362,40 @@
     const t0 = performance.now();
 
     try {
-      await Promise.all(S.layers.map((l, i) => loadFont(layerStyle(i))));
       rebuild();
       const res = await EXP.render({
-        layers: layerData, W, H, fps, outDir, mode: s.mode,
+        layers: layerData, W, H, fps, outDir, mode: draft ? 'draft' : s.mode,
+        namePrefix: draft ? 'SE·prev ' : 'SE· ',
         isCancelled: () => cancelExport,
         onProgress: (done, total, label) => {
           const p = done / total;
           bar.style.width = (p * 100).toFixed(1) + '%';
           const el2 = (performance.now() - t0) / 1000;
           const eta = p > 0.02 ? Math.max(0, el2 / p - el2) : 0;
-          status.textContent = `Renderizando ${done}/${total}${eta ? ` · ~${Math.ceil(eta)} s` : ''}${label ? ' · ' + label.slice(0, 24) : ''}`;
+          status.textContent = `${draft ? 'Vista previa' : 'Renderizando'} ${done}/${total}${eta ? ` · ~${Math.ceil(eta)} s` : ''}${label ? ' · ' + label.slice(0, 24) : ''}`;
         }
       });
       status.textContent = 'Insertando en la línea de tiempo…';
       const tracks = [];
-      for (let i = 0; i <= maxLayer; i++) tracks.push(s.track < 0 ? -1 : s.track + i);
+      for (let i = 0; i <= maxLayer; i++) tracks.push(draft ? -2 : (s.track < 0 ? -1 : s.track + i));
       const payload = {
-        binName: 'SubtitleEngine ' + stamp,
-        trackName: 'SubtitleEngine',
-        fps,
-        tracks,
-        items: res.items.map(it => ({ path: it.path, start: Math.max(0, it.start + startAt), dur: it.dur, name: it.name, layer: it.layer, still: it.still }))
+        binName: (draft ? 'SubtitleEngine Preview ' : 'SubtitleEngine ') + stamp,
+        trackName: draft ? 'SubtitleEngine Preview' : 'SubtitleEngine',
+        tracks, anchorSec, width: W, height: H,
+        clearPrefix: draft ? 'SE·prev' : (s.replace !== false ? 'SE·' : ''),
+        items: res.items.map(it => ({ path: it.path, f0: it.f0, frames: it.frames, name: it.name, layer: it.layer, still: it.still }))
       };
       const out = await CEP.call('importAndPlace', payload);
       if (!out || !out.ok) throw new Error((out && out.error) || 'Premiere no respondió');
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
       const where = out.tracks.map(t => 'V' + (t + 1)).join(', ');
       const stills = res.items.filter(i => i.still).length;
-      status.textContent = `Listo: ${out.placed} clips en ${where} · ${stills} PNG estáticos · ${res.cached} reutilizados (${secs} s)`;
+      status.textContent = draft
+        ? `Vista previa lista en ${where} (${secs} s). Dale play en Premiere.`
+        : `Listo: ${out.placed} clips en ${where} · ${stills} PNG estáticos · ${res.cached} reutilizados (${secs} s)`;
       bar.style.width = '100%';
-      toast(`✓ ${out.placed} subtítulos insertados en ${where}`, 'ok', 4000);
-      confetti();
+      toast(draft ? `▶ Vista previa en ${where}: reprodúcela en el monitor de programa` : `✓ ${out.placed} subtítulos insertados en ${where}`, 'ok', 4000);
+      if (!draft) confetti();
       (out.warnings || []).forEach(w => toast(w, 'warn', 5000));
       refreshSeq(true);
     } catch (err) {
@@ -2318,8 +2408,7 @@
       }
     } finally {
       exporting = false;
-      $('#btnExport').disabled = false;
-      $('#btnExportTop').disabled = false;
+      ['#btnExport', '#btnExportTop', '#btnDraft', '#btnDraftTop'].forEach(id => { const b = $(id); if (b) b.disabled = false; });
     }
   }
 
