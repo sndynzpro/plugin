@@ -85,6 +85,17 @@ var SubFX = (function () {
         }
     }
 
+    /** Puntos de entrada/salida de la secuencia (segundos). */
+    function getInOut() {
+        try {
+            var seq = activeSeq(), a = null, b = null;
+            try { a = seq.getInPointAsTime().seconds; b = seq.getOutPointAsTime().seconds; } catch (e1) {
+                try { a = Number(seq.getInPoint()); b = Number(seq.getOutPoint()); } catch (e2) {}
+            }
+            return toJSON({ ok: true, inPoint: a, outPoint: b });
+        } catch (e) { return fail(e.toString()); }
+    }
+
     function getPlayhead() {
         try { return toJSON({ ok: true, t: activeSeq().getPlayerPosition().seconds }); } catch (e) { return fail(e.toString()); }
     }
@@ -518,6 +529,7 @@ var SubFX = (function () {
         ping: function () { return toJSON({ ok: true, version: app.version }); },
         getSequenceInfo: getSequenceInfo,
         getPlayhead: getPlayhead,
+        getInOut: getInOut,
         setPlayhead: setPlayhead,
         exportFrame: exportFrame,
         importAndPlace: importAndPlace,

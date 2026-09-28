@@ -66,6 +66,7 @@
       </div>
     </div>
     <div class="row-tools">
+      <button class="btn small primary" id="btnTranscribe" title="Transcribe el audio del timeline con Whisper, con tiempos por palabra">Transcribir</button>
       <button class="btn small" id="btnAddCue">+ Agregar línea</button>
       <button class="btn small" id="btnAddParallel" title="Crea una línea en otra capa con el mismo tiempo que el subtítulo seleccionado">+ Añadir paralela</button>
       <button class="btn small" id="btnSplit" title="Divide el subtítulo antes de la palabra seleccionada">Dividir</button>
@@ -93,6 +94,7 @@
       <button data-q="fx">Con efecto</button>
       <button data-q="key">Clave</button>
       <button data-q="em">Énfasis</button>
+      <button data-q="low" title="Palabras que Whisper transcribió con poca seguridad">Dudosas</button>
     </div>
     <div class="cue-list" id="cueList"></div>
     <div class="empty" id="emptyState" hidden>
@@ -100,7 +102,8 @@
       <h3>Proyecto nuevo</h3>
       <p>Arrastra aquí un archivo <b>.srt</b> o <b>.ass</b>, o impórtalo desde tu equipo</p>
       <div class="empty-actions">
-        <button class="btn primary" id="btnEmptyLoad">Importar SRT</button>
+        <button class="btn primary" id="btnEmptyTranscribe">Transcribir el timeline</button>
+        <button class="btn" id="btnEmptyLoad">Importar SRT</button>
         <button class="btn" id="btnSample">Probar con un ejemplo</button>
       </div>
     </div>
@@ -482,6 +485,64 @@
   </div>
 </div>
 
+<div class="modal" id="trModal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="trTitle">
+    <h3 id="trTitle">Transcribir con Whisper</h3>
+    <p class="modal-sub">Genera los subtítulos con el tiempo exacto de cada palabra, alineados al timeline. Después se revisan contra la voz real: se anclan las palabras, se quita lo que Whisper inventa en los silencios y se marcan las dudosas.</p>
+    <div class="form-grid">
+      <div class="field"><label for="trEngine">Motor</label>
+        <select id="trEngine">
+          <option value="api">En la nube (API compatible con OpenAI)</option>
+          <option value="local">En este equipo (whisper.cpp)</option>
+        </select>
+      </div>
+      <div class="field"><label for="trLang">Idioma</label>
+        <select id="trLang">
+          <option value="es">Español</option><option value="en">Inglés</option><option value="pt">Portugués</option>
+          <option value="fr">Francés</option><option value="it">Italiano</option><option value="de">Alemán</option>
+          <option value="auto">Detectar</option>
+        </select>
+      </div>
+      <div class="field api-only"><label for="trProvider">Proveedor</label>
+        <select id="trProvider">
+          <option value="openai">OpenAI · whisper-1</option>
+          <option value="groq">Groq · whisper-large-v3</option>
+          <option value="custom">Otro compatible con OpenAI</option>
+        </select>
+      </div>
+      <div class="field api-only"><label for="trKey">Clave de API</label>
+        <input type="password" id="trKey" placeholder="sk-…" autocomplete="off">
+      </div>
+      <div class="field api-only custom-only"><label for="trUrl">URL base</label><input type="text" id="trUrl" placeholder="https://…/v1"></div>
+      <div class="field api-only custom-only"><label for="trModel">Modelo</label><input type="text" id="trModel" placeholder="whisper-1"></div>
+      <div class="field local-only span2"><label for="trBinary">Ejecutable de whisper.cpp</label>
+        <div class="path-row"><input type="text" id="trBinary" placeholder="Se busca automáticamente (whisper-cli)"><button class="btn small" id="btnTrFind">Buscar</button></div>
+      </div>
+      <div class="field local-only span2"><label for="trModelPath">Modelo ggml</label>
+        <div class="path-row"><input type="text" id="trModelPath" placeholder="ggml-large-v3-turbo.bin"><select id="trModelDl" class="mini-select"></select><button class="btn small" id="btnTrDownload">Descargar</button></div>
+      </div>
+      <div class="field"><label for="trTrack">Pista de audio</label><select id="trTrack"></select></div>
+      <div class="field"><label for="trRange">Rango</label>
+        <select id="trRange"><option value="all">Toda la pista</option><option value="inout">Entre las marcas de entrada y salida</option></select>
+      </div>
+      <div class="field span2"><label for="trPrompt">Vocabulario (nombres, marcas, términos)</label>
+        <input type="text" id="trPrompt" placeholder="30X, Multipliers, Dylan Rosemberg, Andrés Bilbao, Daniel Bilbao">
+      </div>
+      <label class="check span2"><input type="checkbox" id="trSnap" checked><span><b>Anclar las palabras a la voz real</b><small>Corrige el inicio de cada palabra con la voz detectada en el audio</small></span></label>
+      <label class="check span2"><input type="checkbox" id="trDrop" checked><span><b>Quitar lo que cae en silencio</b><small>Whisper a veces inventa frases («Gracias por ver el video») cuando no hay voz</small></span></label>
+    </div>
+    <div class="progress" id="trProgress" hidden><div class="bar"><i id="trBar"></i></div><div class="progress-row"><span id="trStatus">Preparando…</span></div></div>
+    <p class="note" id="trNote">La clave se guarda solo en este equipo. Con el motor local el audio no sale de tu computadora.</p>
+    <div class="modal-actions">
+      <button class="btn" id="btnTrFile" title="Transcribir un archivo de audio o vídeo de tu equipo">Usar un archivo…</button>
+      <input type="file" id="trFile" accept="audio/*,video/*" hidden>
+      <span class="spacer"></span>
+      <button class="btn" id="trCancel">Cerrar</button>
+      <button class="btn primary" id="trRun">Transcribir</button>
+    </div>
+  </div>
+</div>
+
 <div class="drop-overlay" id="dropOverlay"><div>Suelta tu archivo .srt o .ass</div></div>
 <div class="toasts" id="toasts"></div>
 
@@ -493,6 +554,7 @@
 <script src="js/exporter.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/zoom.js"></script>
+<script src="js/transcribe.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

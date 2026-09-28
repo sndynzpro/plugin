@@ -1,0 +1,17 @@
+{
+  "result": { "language": "es" },
+  "transcription": [
+    {
+      "timestamps": { "from": "00:00:00,000", "to": "00:00:02,000" },
+      "offsets": { "from": 0, "to": 2000 },
+      "text": " Hola equipo",
+      "tokens": [
+        { "text": "[_BEG_]", "offsets": { "from": 0, "to": 0 }, "id": 50364, "p": 0.99, "t_dtw": -1 },
+        { "text": " Hola", "offsets": { "from": 300, "to": 700 }, "id": 1, "p": 0.95, "t_dtw": 32 },
+        { "text": " equi", "offsets": { "from": 700, "to": 1000 }, "id": 2, "p": 0.40, "t_dtw": 75 },
+        { "text": "po", "offsets": { "from": 1000, "to": 1500 }, "id": 3, "p": 0.90, "t_dtw": -1 },
+        { "text": "[_TT_100]", "offsets": { "from": 2000, "to": 2000 }, "id": 50464, "p": 0.5, "t_dtw": -1 }
+      ]
+    }
+  ]
+}

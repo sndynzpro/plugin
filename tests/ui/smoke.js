@@ -284,6 +284,41 @@ function wav(file, secs, spans) {
     return rows.length + ' comprobaciones';
   });
 
+  // 11. Transcripción: diálogo → WAV → API compatible OpenAI simulada → refinado → subtítulos
+  await check('transcribe con Whisper (API simulada)', async () => {
+    const http = require('http');
+    const fixture = fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'openai-verbose.json'));
+    let got = '';
+    const srv = await new Promise(res => {
+      const s = http.createServer((req, rs) => {
+        const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+        if (req.method === 'OPTIONS') { rs.writeHead(204, cors); rs.end(); return; }
+        const ch = []; req.on('data', d => ch.push(d));
+        req.on('end', () => { got = Buffer.concat(ch).toString('latin1') + ' ' + req.headers.authorization; rs.writeHead(200, Object.assign({ 'Content-Type': 'application/json' }, cors)); rs.end(fixture); });
+      }).listen(0, '127.0.0.1', () => res(s));
+    });
+    try {
+      const f = path.join(os.tmpdir(), 'subtitleengine-voz.wav');
+      wav(f, 7, [[0.3, 2.5]]);                      // voz solo al principio: lo de 4-6.5 s es silencio
+      await page.click('#btnTranscribe');
+      await page.selectOption('#trEngine', 'api');
+      await page.selectOption('#trProvider', 'custom');
+      await page.fill('#trUrl', `http://127.0.0.1:${srv.address().port}/v1`);
+      await page.fill('#trKey', 'sk-prueba');
+      await page.selectOption('#trLang', 'es');
+      await page.setInputFiles('#trFile', f);
+      await page.waitForFunction(() => /Listo|Error/.test(document.querySelector('#trStatus').textContent), null, { timeout: 15000 });
+      const status = await page.textContent('#trStatus');
+      expect(/^Listo/.test(status), status);
+      expect(got.includes('Bearer sk-prueba') && got.includes('verbose_json') && got.includes('RIFF'), 'petición incompleta');
+      const words = await page.$$eval('.cue .chip-text', e => e.map(x => x.textContent).join(' '));
+      expect(words === 'Cuidado con tu mejor empleado.', 'subtítulos: ' + words);
+      await page.screenshot({ path: path.join(OUT, 'transcripcion.png') });
+      await page.click('#trCancel');
+      return status.replace(/^Listo en \d+ s: /, '');
+    } finally { srv.close(); }
+  });
+
   await check('sin errores de JavaScript', async () => { expect(!errors.length, errors.join(' | ')); });
 
   await browser.close();

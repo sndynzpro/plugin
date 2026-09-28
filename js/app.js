@@ -12,6 +12,7 @@
   const EXP = window.SubFX_Exporter;
   const AU = window.SubFX_Audio;
   const ZM = window.SubFX_Zoom;
+  const TR = window.SubFX_Transcribe;
 
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -58,6 +59,7 @@
       replace: true, format: 'auto', fps: 'auto', track: -1, startMode: 'zero', offset: 0, outDir: '', bg: 'scene', mode: 'auto',
       safe: true,
       sil: { threshold: -38, minDur: 0.4, padIn: 0.06, padOut: 0.09, mode: 'ripple', track: 0, shift: true },
+      tr: { engine: 'api', provider: 'openai', url: '', key: '', model: '', language: 'es', prompt: '', track: 0, range: 'all', snap: true, drop: true, binary: '', modelPath: '', dlModel: 'large-v3-turbo' },
       zoom: { min: 100, max: 120, trigger: 'cut', direction: 'in', easing: 'smooth', frames: 8, interval: 2.5, focal: 'face', fx: 50, fy: 33, scope: 'selected', track: 0, replace: true }
     },
     history: [],
@@ -115,7 +117,8 @@
       const set = d.settings || {};
       Object.assign(S.settings.sil, set.sil || {});
       Object.assign(S.settings.zoom, set.zoom || {});
-      delete set.sil; delete set.zoom;
+      Object.assign(S.settings.tr, set.tr || {});
+      delete set.sil; delete set.zoom; delete set.tr;
       Object.assign(S.settings, set);
       uid = d.uid || 1000;
       return true;
@@ -604,6 +607,7 @@
     c.classList.toggle('key', !!o.key);
     c.classList.toggle('em', !!o.em);
     c.classList.toggle('br', !!o.br);
+    c.classList.toggle('low', !!w.low);
     c.classList.toggle('cut', !!o.cut);
     c.classList.toggle('boxed', !!o.boxColor);
     c.style.setProperty('--bc', o.boxColor || 'transparent');
@@ -615,6 +619,7 @@
     c.style.setProperty('--wc', o.color || '');
     if (fx) c.appendChild(el('i', 'fx-tag', fx.name));
     const bits = [];
+    if (w.low) bits.push('Whisper no estaba seguro: revísala');
     if (o.key) bits.push('Palabra clave');
     if (o.em) bits.push('Énfasis');
     if (o.boxColor) bits.push('Caja: ' + o.boxColor);
@@ -745,6 +750,7 @@
           snapshot();
           const parts = val.split(' ');
           info.word.text = parts[0];
+          delete info.word.low;
           if (parts.length > 1) {
             const idx = info.cue.words.indexOf(info.word);
             info.cue.words.splice(idx + 1, 0, ...splitWords(parts.slice(1).join(' ')));
@@ -976,6 +982,7 @@
       case 'long': sel.clear(); all.forEach(id => { if (norm(text(id)).length >= 7) sel.add(id); }); break;
       case 'fx': sel.clear(); all.forEach(id => { const o = wordMap.get(id).word.ovr; if (o.fx || o.color) sel.add(id); }); break;
       case 'key': sel.clear(); all.forEach(id => { if (wordMap.get(id).word.ovr.key) sel.add(id); }); break;
+      case 'low': sel.clear(); all.forEach(id => { if (wordMap.get(id).word.low) sel.add(id); }); if (!sel.size) toast('No hay palabras dudosas'); break;
       case 'em': sel.clear(); all.forEach(id => { if (wordMap.get(id).word.ovr.em) sel.add(id); }); break;
     }
     refreshSelectionUI();
@@ -1866,7 +1873,7 @@
     $('#search').value = '';
 
     if (opts.exportSettings) {
-      const keep = { bg: S.settings.bg, safe: S.settings.safe, sil: S.settings.sil, zoom: S.settings.zoom };
+      const keep = { bg: S.settings.bg, safe: S.settings.safe, sil: S.settings.sil, zoom: S.settings.zoom, tr: S.settings.tr };
       S.settings = Object.assign(JSON.parse(DEFAULT_SETTINGS), keep);
       syncExportUI();
     }
@@ -1902,6 +1909,193 @@
     $('#btnClearFx').addEventListener('click', clearAllEffects);
     $('#btnEmptyLoad').addEventListener('click', () => $('#fileSrt').click());
     $('#btnSample').addEventListener('click', () => loadSrtText(SRT.SAMPLE, 'Ejemplo'));
+  }
+
+  // ───────────── Transcripción con Whisper ─────────────
+  function trCfg() {
+    const t = S.settings.tr;
+    const prov = TR.PROVIDERS[t.provider] || TR.PROVIDERS.openai;
+    return {
+      provider: t.provider, url: t.provider === 'custom' ? t.url : prov.url, key: t.key,
+      model: t.provider === 'custom' ? (t.model || 'whisper-1') : prov.model,
+      language: t.language, prompt: t.prompt, binary: t.binary, modelPath: t.modelPath
+    };
+  }
+
+  function trSync() {
+    const t = S.settings.tr, m = $('#trModal');
+    m.dataset.engine = t.engine;
+    m.dataset.provider = t.provider;
+    ['Engine', 'Lang', 'Provider', 'Key', 'Url', 'Model', 'Binary', 'ModelPath', 'Range', 'Prompt'].forEach(k => {
+      const e = $('#tr' + k), key = k === 'Lang' ? 'language' : k.charAt(0).toLowerCase() + k.slice(1);
+      if (e && document.activeElement !== e) e.value = t[key] == null ? '' : t[key];
+    });
+    $('#trSnap').checked = t.snap !== false;
+    $('#trDrop').checked = t.drop !== false;
+  }
+
+  function openTranscribe() {
+    const sel = $('#trTrack');
+    sel.innerHTML = '';
+    const at = S.seq && S.seq.audioTracks ? S.seq.audioTracks : [{ index: 0, name: 'A1' }, { index: 1, name: 'A2' }];
+    at.forEach(t => { const o = el('option', null, `A${t.index + 1}${t.clips != null ? ` (${t.clips} clips)` : ''}`); o.value = t.index; sel.appendChild(o); });
+    sel.value = String(S.settings.tr.track);
+    if (sel.selectedIndex < 0) sel.selectedIndex = 0;
+    const md = $('#trModelDl');
+    if (!md.options.length) TR.MODELS.forEach(m => { const o = el('option', null, m.label); o.value = m.id; md.appendChild(o); });
+    md.value = S.settings.tr.dlModel || 'large-v3-turbo';
+    trSync();
+    $('#trModal').hidden = false;
+    refreshSeq(true).then(s => { if (s && s.audioTracks && sel.options.length !== s.audioTracks.length) openTranscribe(); });
+  }
+
+  function trProgress(p, msg) {
+    $('#trProgress').hidden = false;
+    if (p != null) $('#trBar').style.width = (Math.max(0, Math.min(1, p)) * 100).toFixed(1) + '%';
+    if (msg) $('#trStatus').textContent = msg;
+  }
+
+  let transcribing = false;
+  async function runTranscription(file) {
+    if (transcribing) return;
+    const t = S.settings.tr, cfg = trCfg();
+    if (t.engine === 'api' && !cfg.key) { toast('Escribe la clave de API del proveedor', 'warn'); $('#trKey').focus(); return; }
+    if (t.engine === 'api' && !cfg.url) { toast('Escribe la URL base del proveedor', 'warn'); return; }
+    if (!file && !CEP.available) { toast('Fuera de Premiere, usa «Usar un archivo…»', 'warn'); return; }
+    transcribing = true;
+    $('#trRun').disabled = true;
+    const t0 = performance.now();
+    try {
+      // 1. Audio en tiempo de secuencia (16 kHz mono)
+      let mix;
+      if (file) {
+        trProgress(0.02, 'Decodificando ' + file.name + '…');
+        const a = await AU.decodeArrayBuffer(await file.arrayBuffer());
+        mix = { samples: TR.resample(a.samples, a.sampleRate, TR.SR), sampleRate: TR.SR, from: 0 };
+      } else {
+        trProgress(0.02, 'Leyendo la pista A' + (t.track + 1) + '…');
+        const info = await CEP.call('getAudioClips', String(t.track));
+        if (!info || !info.ok) throw new Error((info && info.error) || 'Premiere no respondió');
+        const clips = info.clips.filter(c => c.path);
+        if (!clips.length) throw new Error('La pista A' + (t.track + 1) + ' no tiene clips con audio');
+        let from = null, to = null;
+        if (t.range === 'inout') {
+          const io = await CEP.call('getInOut');
+          if (io && io.ok && io.outPoint > io.inPoint) { from = io.inPoint; to = io.outPoint; }
+          else toast('No hay marcas de entrada/salida: se transcribe toda la pista', 'warn');
+        }
+        const decoded = {};
+        const paths = Array.from(new Set(clips.map(c => c.path)));
+        for (let i = 0; i < paths.length; i++) {
+          trProgress(0.03 + 0.1 * i / paths.length, `Decodificando audio ${i + 1}/${paths.length}…`);
+          decoded[paths[i]] = await decodeMedia(paths[i]);
+        }
+        mix = TR.mixTimeline(clips, decoded, from, to);
+      }
+      const dur = mix.samples.length / TR.SR;
+
+      // 2. Voz real (para anclar palabras y descartar alucinaciones)
+      trProgress(0.14, 'Detectando la voz…');
+      const sil = AU.detect(mix.samples, TR.SR, { threshold: S.settings.sil.threshold, minDur: 0.2, padIn: 0.03, padOut: 0.05 });
+      const speech = AU.speech(sil, 0, dur).map(r => ({ start: r.start + mix.from, end: r.end + mix.from }));
+      if (!speech.length) throw new Error('No se detectó voz. Revisa la pista o baja el umbral de silencio en Herramientas.');
+
+      // 3. Whisper
+      let cues = [], dropped = [];
+      if (t.engine === 'local') {
+        trProgress(0.16, 'whisper.cpp está transcribiendo…');
+        const r = await TR.transcribeLocal(TR.encodeWav(mix.samples, TR.SR), cfg, mix.from, p => trProgress(0.16 + 0.8 * p, `whisper.cpp: ${Math.round(p * 100)} %`));
+        cues = r.cues; dropped = r.dropped;
+      } else {
+        const ranges = TR.chunkRanges(dur, 600, sil);
+        let context = '';
+        for (let i = 0; i < ranges.length; i++) {
+          const rg = ranges[i];
+          trProgress(0.16 + 0.8 * i / ranges.length, `Transcribiendo ${i + 1}/${ranges.length} (${Math.round(rg.end - rg.start)} s)…`);
+          const slice = mix.samples.subarray(Math.floor(rg.start * TR.SR), Math.floor(rg.end * TR.SR));
+          const prompt = [t.prompt, context].filter(Boolean).join(' ');
+          const r = await TR.transcribeAPI(TR.encodeWav(slice, TR.SR), Object.assign({}, cfg, { prompt }), mix.from + rg.start);
+          cues = cues.concat(r.cues);
+          dropped = dropped.concat(r.dropped);
+          context = r.cues.slice(-2).map(c => c.text).join(' ');
+        }
+      }
+      if (!cues.length) throw new Error('Whisper no devolvió texto');
+
+      // 4. Refinado contra la voz
+      trProgress(0.97, 'Revisando contra la voz real…');
+      const ref = TR.refine(cues, speech, { snap: t.snap !== false, dropSilent: t.drop !== false });
+
+      // 5. Cargar: los tiempos ya están en segundos de secuencia → sin desfase
+      snapshot();
+      S.cues = ref.cues.map(c => ({
+        id: newId('c'), start: c.start, end: c.end, layer: 0, speaker: '',
+        words: c.words
+          ? c.words.map(w => Object.assign({ id: newId('w'), text: w.text, ovr: {}, t0: w.t0, t1: w.t1 }, w.low ? { low: true } : {}))
+          : splitWords(c.text)
+      }));
+      S.selection.clear();
+      S.settings.startMode = 'zero';
+      S.settings.offset = 0;
+      syncExportUI();
+      onCuesReplaced();
+      seek(S.cues[0].start + 0.01);
+      const nWords = S.cues.reduce((a, c) => a + c.words.length, 0);
+      const secs = ((performance.now() - t0) / 1000).toFixed(0);
+      const gone = dropped.concat(ref.removed).filter(Boolean);
+      trProgress(1, `Listo en ${secs} s: ${S.cues.length} subtítulos · ${nWords} palabras · ${ref.low} dudosas · ${ref.snapped} ancladas a la voz`);
+      $('#trNote').textContent = gone.length ? `Quitado por caer en silencio: «${gone.slice(0, 4).join('», «')}»${gone.length > 4 ? '…' : ''}` : 'No se encontró texto inventado en silencios.';
+      toast(`✓ ${S.cues.length} subtítulos transcritos${ref.low ? ` · ${ref.low} palabras para revisar (filtro «Dudosas»)` : ''}`, 'ok', 5000);
+      confetti();
+    } catch (err) {
+      trProgress(null, 'Error: ' + err.message);
+      toast('Transcripción: ' + err.message, 'err', 7000);
+    } finally {
+      transcribing = false;
+      $('#trRun').disabled = false;
+    }
+  }
+
+  async function downloadWhisperModel() {
+    if (!CEP.available) { toast('La descarga funciona dentro de Premiere', 'warn'); return; }
+    const id = $('#trModelDl').value;
+    const dest = `${CEP.systemPath('userData')}/SubtitleEngine/models/ggml-${id}.bin`;
+    const btn = $('#btnTrDownload');
+    btn.disabled = true;
+    try {
+      await TR.downloadModel(id, dest, p => trProgress(p, `Descargando ggml-${id}.bin: ${Math.round(p * 100)} %`));
+      S.settings.tr.modelPath = dest;
+      S.settings.tr.dlModel = id;
+      saveSession();
+      trSync();
+      trProgress(1, 'Modelo listo: ' + dest);
+    } catch (err) { trProgress(null, 'Error: ' + err.message); toast('Descarga: ' + err.message, 'err', 6000); }
+    finally { btn.disabled = false; }
+  }
+
+  function bindTranscribe() {
+    const t = S.settings.tr;
+    const map = { trEngine: 'engine', trLang: 'language', trProvider: 'provider', trKey: 'key', trUrl: 'url', trModel: 'model', trBinary: 'binary', trModelPath: 'modelPath', trRange: 'range', trPrompt: 'prompt', trModelDl: 'dlModel' };
+    Object.keys(map).forEach(id => {
+      const e = $('#' + id);
+      e.addEventListener(e.tagName === 'SELECT' ? 'change' : 'input', () => { t[map[id]] = e.value.trim(); saveSession(); trSync(); });
+    });
+    $('#trTrack').addEventListener('change', e => { t.track = +e.target.value; saveSession(); });
+    $('#trSnap').addEventListener('change', e => { t.snap = e.target.checked; saveSession(); });
+    $('#trDrop').addEventListener('change', e => { t.drop = e.target.checked; saveSession(); });
+    $('#btnTrFind').addEventListener('click', () => {
+      const b = TR.findWhisperBinary();
+      if (b) { t.binary = b; saveSession(); trSync(); toast('Encontrado: ' + b, 'ok'); }
+      else toast('No se encontró whisper.cpp. En Mac: brew install whisper-cpp. En Windows: descarga whisper-bin-x64.zip de github.com/ggml-org/whisper.cpp/releases', 'warn', 8000);
+    });
+    $('#btnTrDownload').addEventListener('click', downloadWhisperModel);
+    $('#btnTrFile').addEventListener('click', () => $('#trFile').click());
+    $('#trFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) runTranscription(f); });
+    $('#trRun').addEventListener('click', () => runTranscription());
+    $('#trCancel').addEventListener('click', () => { $('#trModal').hidden = true; });
+    $('#trModal').addEventListener('click', e => { if (e.target.id === 'trModal' && !transcribing) $('#trModal').hidden = true; });
+    $('#btnTranscribe').addEventListener('click', openTranscribe);
+    $('#btnEmptyTranscribe').addEventListener('click', openTranscribe);
   }
 
   // ───────────── Herramientas: silencios ─────────────
@@ -2574,7 +2768,7 @@
 
   function bindKeys() {
     document.addEventListener('keydown', e => {
-      if (!$('#newModal').hidden) return;
+      if (!$('#newModal').hidden || !$('#trModal').hidden) return;
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'select' || tag === 'textarea' || e.target.isContentEditable) return;
       const mod = e.ctrlKey || e.metaKey;
@@ -2621,6 +2815,7 @@
     bindLoading();
     bindExport();
     bindTools();
+    bindTranscribe();
     bindProject();
     bindKeys();
     refreshSelectionUI();

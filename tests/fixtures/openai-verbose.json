@@ -1,0 +1,20 @@
+{
+  "task": "transcribe", "language": "spanish", "duration": 6.5,
+  "text": "Cuidado con tu mejor empleado. Gracias por ver el video.",
+  "segments": [
+    { "id": 0, "start": 0.0, "end": 2.6, "text": " Cuidado con tu mejor empleado.", "avg_logprob": -0.2, "no_speech_prob": 0.01, "compression_ratio": 1.1 },
+    { "id": 1, "start": 4.0, "end": 6.5, "text": " Gracias por ver el video.", "avg_logprob": -1.4, "no_speech_prob": 0.82, "compression_ratio": 1.2 }
+  ],
+  "words": [
+    { "word": "Cuidado", "start": 0.3, "end": 0.8 },
+    { "word": "con", "start": 0.8, "end": 1.0 },
+    { "word": "tu", "start": 1.0, "end": 1.2 },
+    { "word": "mejor", "start": 1.2, "end": 1.7 },
+    { "word": "empleado.", "start": 1.7, "end": 2.5 },
+    { "word": "Gracias", "start": 4.2, "end": 4.6 },
+    { "word": "por", "start": 4.6, "end": 4.8 },
+    { "word": "ver", "start": 4.8, "end": 5.0 },
+    { "word": "el", "start": 5.0, "end": 5.1 },
+    { "word": "video.", "start": 5.1, "end": 5.6 }
+  ]
+}

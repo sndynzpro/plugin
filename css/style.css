@@ -424,6 +424,17 @@ details.tool:last-child { border-bottom: 1px solid var(--line); }
 .note { font-size: 11px; color: var(--muted); margin: 12px 0 0; line-height: 1.55; }
 .note.tight { margin: -4px 0 0; }
 
+/* Transcripción */
+.modal-card.wide { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin: 6px 0 4px; }
+.form-grid .span2 { grid-column: 1 / -1; }
+.form-grid .check { border-top: 0; padding: 4px 2px; }
+#trModal[data-engine="api"] .local-only, #trModal[data-engine="local"] .api-only { display: none; }
+#trModal:not([data-provider="custom"]) .custom-only { display: none; }
+.modal-actions .spacer { flex: 1; }
+.chip.low .chip-text { text-decoration: underline wavy var(--err); text-underline-offset: 4px; text-decoration-thickness: 1px; }
+@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+
 /* Diagnóstico */
 .diag { margin-top: 12px; border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; }
 .diag-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
