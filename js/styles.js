@@ -26,6 +26,9 @@
     glowColor: '#00E5FF', glow: 0,
     // Palabra destacada / karaoke
     hlMode: 'current', hlColor: '#FFE600', hlScale: 1.1, hlBox: false, hlBoxColor: '#7C3AED',
+    // Énfasis con cajas: A = amarillo, B = negro. Intercalado: B/A, A/B, B/A…
+    emMode: 'alternate', emColorA: '#FAFF96', emColorB: '#000000', emOnKey: false,
+    emScale: 1, emRadius: 10, emPad: 0.16, emPlain: true, emPop: true,
     // Fondos, cajas y glass
     bg: 'none', bgColor: '#000000', bgOpacity: 0.55, bgRadius: 18, bgPadX: 20, bgPadY: 12,
     bgGlass: false, glassBorder: 0.35, glassShine: 0.18,
@@ -60,6 +63,18 @@
       id: 'x30-cover', name: '30X Portada', case: 'upper', align: 'left', size: 96, posX: 8, posY: 50,
       hlMode: 'none', maxWords: 0, maxWidth: 84, shadowOpacity: 0.5
     }),
+    {
+      id: 'enfasis', name: 'Énfasis intercalado', font: 'Montserrat', weight: 800, size: 72, case: 'upper',
+      strokeWidth: 0, shadowOpacity: 0.6, shadowBlur: 10, shadowY: 4,
+      hlMode: 'none', emMode: 'alternate', emOnKey: true, emColorA: '#FAFF96', emColorB: '#000000', emRadius: 8,
+      maxWords: 4, cueIn: 'pop', posY: 70
+    },
+    {
+      id: 'x30-enfasis', name: '30X Énfasis', cat: '30x', font: 'Inter', weight: 700, size: 62, case: 'lower',
+      color: '#F6F5F0', strokeWidth: 0, shadowOpacity: 0.65, shadowBlur: 6, shadowAngle: 90, shadowDist: 4,
+      hlMode: 'none', emMode: 'alternate', emOnKey: true, emColorA: '#FAFF96', emColorB: '#000000', emRadius: 6, emPop: false,
+      maxWords: 5, maxWidth: 80, posY: 72, safeTop: 250, safeBottom: 380, safeSide: 60, cueIn: 'none', lineHeight: 1.3
+    },
     {
       id: 'hormozi', name: 'Hormozi', font: 'Montserrat', weight: 900, size: 84,
       strokeWidth: 9, shadowOpacity: 0.5, shadowBlur: 0, shadowY: 7,

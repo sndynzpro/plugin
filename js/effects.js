@@ -167,6 +167,40 @@
       }
     },
 
+    {
+      id: 'stamp', name: 'Sello', cat: 'in', dur: 0.28, color: '#FFE600',
+      desc: 'Cae de golpe como un sello',
+      apply(T, t, k) {
+        if (t < 0) { T.alpha = 0; return; }
+        const x = clamp(t / this.dur);
+        const s = 1 + (1.6 * k) * Math.pow(1 - x, 3);
+        T.sx *= s; T.sy *= s;
+        T.rot += -0.12 * k * (1 - Ease.cubic(x));
+        T.alpha = clamp(x * 4);
+      }
+    },
+    {
+      id: 'rise', name: 'Subir', cat: 'in', dur: 0.4, color: '#FFE600',
+      desc: 'Sube suavemente desde abajo',
+      apply(T, t, k) {
+        if (t < 0) { T.alpha = 0; return; }
+        const x = Ease.cubic(t / this.dur);
+        T.dy += 0.55 * k * (1 - x);
+        T.blur = Math.max(T.blur, 0.05 * k * (1 - x));
+        T.alpha = x;
+      }
+    },
+    {
+      id: 'swipe', name: 'Barrido', cat: 'in', dur: 0.3, color: '#FFE600',
+      desc: 'Las letras aparecen con un barrido lateral',
+      apply(T, t, k) {
+        if (t < 0) { T.alpha = 0; return; }
+        const x = Ease.cubic(t / this.dur);
+        T.reveal = Math.min(T.reveal, x);
+        T.dx -= 0.25 * k * (1 - x);
+        T.skew += -0.25 * k * (1 - x);
+      }
+    },
     // ───────────── Énfasis ─────────────
     {
       id: 'punch', name: 'Golpe', cat: 'hit', dur: 0.35, color: '#FFE600',
@@ -253,6 +287,50 @@
       }
     },
 
+    {
+      id: 'squash', name: 'Gelatina', cat: 'hit', dur: 0.5, color: '#FFE600',
+      desc: 'Se aplasta y se estira como gelatina',
+      apply(T, t, k) {
+        const x = t / this.dur;
+        if (x < 0 || x > 1) return;
+        const w = Math.sin(x * Math.PI * 3) * (1 - x) * 0.3 * k;
+        T.sx *= 1 + w; T.sy *= 1 - w;
+      }
+    },
+    {
+      id: 'swing', name: 'Péndulo', cat: 'hit', dur: 0.7, color: '#FFE600',
+      desc: 'Se balancea y vuelve a su sitio',
+      apply(T, t, k) {
+        const x = t / this.dur;
+        if (x < 0 || x > 1) return;
+        T.rot += Math.sin(x * Math.PI * 4) * (1 - x) * 0.22 * k;
+      }
+    },
+    {
+      id: 'strobe', name: 'Estrobo', cat: 'hit', dur: 0.45, color: '#FAFF96',
+      desc: 'Parpadea alternando color',
+      apply(T, t, k, color) {
+        const x = t / this.dur;
+        if (x < 0 || x > 1) return;
+        const on = Math.floor(x * 6) % 2 === 0;
+        T.flash = on ? clamp(k) : 0;
+        T.flashColor = color;
+        T.sx *= on ? 1 + 0.06 * k : 1; T.sy *= on ? 1 + 0.06 * k : 1;
+      }
+    },
+    {
+      id: 'blockSwap', name: 'Caja intercalada', cat: 'hit', dur: 0.25, color: '#FAFF96',
+      desc: 'Caja de color que entra de golpe detrás de la palabra',
+      apply(T, t, k, color) {
+        if (t < 0) return;
+        const x = clamp(t / this.dur);
+        T.box = { color, p: Math.min(1, Ease.back(x)) };
+        T.flash = Math.max(T.flash, x);  // la letra pasa a negro sobre la caja
+        T.flashColor = '#000000';
+        const s = 1 + 0.12 * k * Ease.bump(x);
+        T.sx *= s; T.sy *= s;
+      }
+    },
     // ───────────── Continuo ─────────────
     {
       id: 'neon', name: 'Neón', cat: 'loop', dur: 0, color: '#00E5FF',

@@ -478,6 +478,7 @@
     S.cues.forEach((cue, i) => {
       const row = el('div', 'cue');
       row.dataset.cue = cue.id;
+      row.style.setProperty('--i', Math.min(i, 18));
 
       const meta = el('div', 'cue-meta');
       meta.appendChild(el('span', 'cue-idx', '#' + String(i + 1).padStart(2, '0')));
@@ -546,10 +547,17 @@
     c.classList.toggle('has-color', !!o.color);
     c.classList.toggle('has-fx', !!fx);
     c.classList.toggle('key', !!o.key);
+    c.classList.toggle('em', !!o.em);
+    if (o.em) {
+      const info = wordMap.get(w.id);
+      const ems = info ? info.cue.words.filter(x => x.ovr && x.ovr.em) : [];
+      c.classList.toggle('em-b', ems.indexOf(w) % 2 === 1);
+    } else c.classList.remove('em-b');
     c.style.setProperty('--wc', o.color || '');
     if (fx) c.appendChild(el('i', 'fx-tag', fx.name));
     const bits = [];
     if (o.key) bits.push('Palabra clave');
+    if (o.em) bits.push('Énfasis');
     if (fx) bits.push('Efecto: ' + fx.name);
     if (o.color) bits.push('Color: ' + o.color);
     if (o.scale && o.scale !== 1) bits.push('Tamaño: ' + Math.round(o.scale * 100) + '%');
@@ -806,6 +814,7 @@
       case 'long': sel.clear(); all.forEach(id => { if (norm(text(id)).length >= 7) sel.add(id); }); break;
       case 'fx': sel.clear(); all.forEach(id => { const o = wordMap.get(id).word.ovr; if (o.fx || o.color) sel.add(id); }); break;
       case 'key': sel.clear(); all.forEach(id => { if (wordMap.get(id).word.ovr.key) sel.add(id); }); break;
+      case 'em': sel.clear(); all.forEach(id => { if (wordMap.get(id).word.ovr.em) sel.add(id); }); break;
     }
     refreshSelectionUI();
   }
@@ -820,7 +829,9 @@
     const words = selectedWords();
     const n = words.length;
     const cnt = $('#selCount');
-    cnt.textContent = n === 1 ? '1 seleccionada' : `${n} seleccionadas`;
+    const txtCount = n === 1 ? '1 seleccionada' : `${n} seleccionadas`;
+    if (cnt.textContent !== txtCount) bump(cnt);
+    cnt.textContent = txtCount;
     cnt.classList.toggle('on', n > 0);
 
     const banner = $('#fxSelInfo');
@@ -846,6 +857,7 @@
     $('#wordProps').classList.toggle('disabled', n === 0);
     const o = n ? words[0].ovr : {};
     $('#ovKey').checked = n > 0 && words.every(w => w.ovr.key);
+    $('#ovEm').checked = n > 0 && words.every(w => w.ovr.em);
     paintSwatches('#swText', o.color || null);
     const fx0 = FX.get(o.fx);
     paintSwatches('#swFx', o.fxColor || null, fx0 ? fx0.color : null);
@@ -979,6 +991,12 @@
       const on = e.target.checked;
       mutateSelection(o => { if (on) o.key = true; else delete o.key; });
     });
+    $('#ovEm').addEventListener('change', e => {
+      const on = e.target.checked;
+      if (mutateSelection(o => { if (on) o.em = true; else delete o.em; }) && (renderCueList(), refreshSelectionUI(), on) && style().emMode === 'none') {
+        toast('Activa el modo de énfasis en Estilos → Énfasis para verlo', 'warn', 3500);
+      }
+    });
     $('#btnFxRemove').addEventListener('click', () => mutateSelection(o => { delete o.fx; delete o.fxColor; }));
     $('#btnWordReset').addEventListener('click', () => mutateSelection((o, w) => { w.ovr = {}; }));
     $('#btnPreviewSel').addEventListener('click', previewSelection);
@@ -1055,6 +1073,19 @@
         { k: 'hlScale', label: 'Escala de la palabra', type: 'range', min: 1, max: 1.6, step: 0.01, show: s => s.hlMode !== 'none' },
         { k: 'hlBox', label: 'Caja detrás de la palabra', type: 'toggle', show: s => s.hlMode !== 'none' },
         { k: 'hlBoxColor', label: 'Color de la caja', type: 'color', show: s => s.hlMode !== 'none' && s.hlBox }
+      ]
+    },
+    {
+      title: 'Énfasis (cajas intercaladas)', open: true, sum: s => ({ alternate: 'Intercalado', dark: 'Fondo oscuro', light: 'Fondo claro', none: 'Off' })[s.emMode] + (s.emOnKey && s.emMode !== 'none' ? ' · clave' : ''), fields: [
+        { k: 'emMode', label: 'Modo', type: 'select', options: [['alternate', 'Intercalado (negro/amarillo ↔ amarillo/negro)'], ['dark', 'Letra amarilla, fondo negro'], ['light', 'Fondo amarillo, letra negra'], ['none', 'Desactivado']] },
+        { k: 'emColorA', label: 'Color A (amarillo)', type: 'color', half: true, show: s => s.emMode !== 'none' },
+        { k: 'emColorB', label: 'Color B (negro)', type: 'color', half: true, show: s => s.emMode !== 'none' },
+        { k: 'emOnKey', label: 'Aplicar a las palabras clave', type: 'toggle', show: s => s.emMode !== 'none' },
+        { k: 'emScale', label: 'Escala', type: 'range', min: 1, max: 1.5, step: 0.01, half: true, show: s => s.emMode !== 'none' },
+        { k: 'emRadius', label: 'Redondeo', type: 'range', min: 0, max: 40, step: 1, unit: 'px', half: true, show: s => s.emMode !== 'none' },
+        { k: 'emPad', label: 'Margen de la caja', type: 'range', min: 0.04, max: 0.4, step: 0.01, show: s => s.emMode !== 'none' },
+        { k: 'emPop', label: 'Rebote al decirla', type: 'toggle', show: s => s.emMode !== 'none' },
+        { k: 'emPlain', label: 'Sin contorno ni sombra en el énfasis', type: 'toggle', show: s => s.emMode !== 'none' }
       ]
     },
     {
@@ -1161,6 +1192,7 @@
       d.appendChild(body);
       root.appendChild(d);
     });
+    smoothDetails(root);
     syncStyleEditor();
   }
 
@@ -1325,8 +1357,9 @@
   function buildStyleGallery() {
     const g = $('#styleGallery');
     g.innerHTML = '';
-    Object.values(styles).forEach(st => {
+    Object.values(styles).forEach((st, gi) => {
       const card = el('button', 'style-card' + (st.id === style().id ? ' on' : ''));
+      card.style.setProperty('--i', Math.min(gi, 16));
       card.dataset.id = st.id;
       const cv = el('canvas');
       cv.width = 480;
@@ -1552,6 +1585,11 @@
     S.time = 0;
     renderLayerBar();
     onCuesReplaced();
+    const list = $('#cueList');
+    list.classList.remove('enter');
+    void list.offsetWidth;
+    list.classList.add('enter');
+    setTimeout(() => list.classList.remove('enter'), 1200);
     const words = cues.reduce((a, c) => a + c.words.length, 0);
     toast(`${name ? name + ': ' : ''}${cues.length} subtítulos · ${words} palabras${speakers.length > 1 ? ` · ${speakers.length} hablantes` : ''}`, 'ok');
   }
@@ -1780,6 +1818,7 @@
         audioCache.clear();
         renderSilences();
         toast(`✓ ${r.done} silencios eliminados (${total.toFixed(1)} s)`, 'ok', 4000);
+        confetti();
       } else toast(`✓ ${r.done} marcadores creados`, 'ok');
       refreshSeq(true);
     } catch (err) {
@@ -1870,6 +1909,7 @@
       if (!r || !r.ok) throw new Error((r && r.error) || 'Premiere no respondió');
       (r.warnings || []).forEach(w => toast(w, 'warn', 5000));
       toast(`✓ Zoom aplicado a ${r.clips} clip${r.clips === 1 ? '' : 's'}`, 'ok', 3500);
+      confetti();
     } catch (err) {
       toast('Auto-Zoom: ' + err.message, 'err', 6000);
     } finally { btn.disabled = false; }
@@ -2119,6 +2159,7 @@
       status.textContent = `Listo: ${out.placed} clips en ${where} · ${stills} PNG estáticos · ${res.cached} reutilizados (${secs} s)`;
       bar.style.width = '100%';
       toast(`✓ ${out.placed} subtítulos insertados en ${where}`, 'ok', 4000);
+      confetti();
       (out.warnings || []).forEach(w => toast(w, 'warn', 5000));
       refreshSeq(true);
     } catch (err) {
@@ -2211,10 +2252,85 @@
     else toast(done ? 'Informe copiado' : 'No se pudo copiar', done ? 'ok' : 'err');
   }
 
+  // ───────────── Movimiento de la interfaz ─────────────
+  const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function moveTabInk() {
+    const tabs = $('.tabs'), a = $('.tab.active');
+    if (!tabs || !a) return;
+    tabs.style.setProperty('--tab-x', a.offsetLeft + 'px');
+    tabs.style.setProperty('--tab-w', a.offsetWidth + 'px');
+  }
+
+  /** Abre y cierra los acordeones animando la altura. */
+  function smoothDetails(root) {
+    $$('details.sec', root).forEach(d => {
+      if (d.dataset.smooth) return;
+      d.dataset.smooth = '1';
+      const sum = d.querySelector('summary'), body = d.querySelector('.sec-body');
+      if (!sum || !body) return;
+      sum.addEventListener('click', e => {
+        if (reducedMotion() || !body.animate) return;
+        e.preventDefault();
+        if (d._anim) d._anim.cancel();
+        if (!d.open) {
+          d.open = true;
+          const h = body.scrollHeight;
+          d._anim = body.animate([{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)' });
+        } else {
+          const h = body.scrollHeight;
+          d._anim = body.animate([{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 240, easing: 'cubic-bezier(.22,1,.36,1)' });
+          d._anim.onfinish = () => { d.open = false; };
+        }
+      });
+    });
+  }
+
+  function bump(elm) {
+    if (!elm) return;
+    elm.classList.remove('bump');
+    void elm.offsetWidth;
+    elm.classList.add('bump');
+  }
+
+  /** Confeti amarillo y negro (celebración al terminar una tarea larga). */
+  function confetti() {
+    if (reducedMotion()) return;
+    const cv = el('canvas', 'confetti');
+    cv.width = window.innerWidth;
+    cv.height = window.innerHeight;
+    document.body.appendChild(cv);
+    const c = cv.getContext('2d');
+    const colors = ['#FAFF96', '#1B1E1A', '#F6F5F0', '#C9A227'];
+    const parts = Array.from({ length: 90 }, () => ({
+      x: cv.width * (0.3 + Math.random() * 0.4), y: cv.height * 0.35,
+      vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 13 - 4,
+      r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.4,
+      w: 6 + Math.random() * 7, h: 3 + Math.random() * 5, col: colors[(Math.random() * colors.length) | 0]
+    }));
+    const t0 = performance.now();
+    (function frame(now) {
+      const k = (now - t0) / 1600;
+      c.clearRect(0, 0, cv.width, cv.height);
+      parts.forEach(p => {
+        p.vy += 0.45; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        c.save();
+        c.globalAlpha = Math.max(0, 1 - k);
+        c.translate(p.x, p.y);
+        c.rotate(p.r);
+        c.fillStyle = p.col;
+        c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        c.restore();
+      });
+      if (k < 1) requestAnimationFrame(frame); else cv.remove();
+    })(t0);
+  }
+
   // ───────────── Pestañas y teclado ─────────────
   function switchTab(name) {
     $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
     $$('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+    moveTabInk();
     if (name === 'style') Object.keys(styles).forEach(renderStyleThumb);
     if (name === 'export' || name === 'tools') refreshSeq(true);
     if (name === 'tools') drawZoomGraph();
@@ -2291,7 +2407,11 @@
     let tab = 'style';
     try { tab = localStorage.getItem('subfx.tab') || 'style'; } catch (e) { /* ignorado */ }
     if ($('#tab-' + tab)) switchTab(tab);
+    smoothDetails($('#tab-tools'));
     fitStage();
+    moveTabInk();
+    window.addEventListener('resize', moveTabInk);
+    if (document.fonts) document.fonts.ready.then(moveTabInk);
     S.time = 1.2;
     requestAnimationFrame(tick);
   }

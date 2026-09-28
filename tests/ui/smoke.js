@@ -78,6 +78,29 @@ function wav(file, secs, spans) {
     return ST.PRESETS.length + ' presets';
   }));
 
+  // 2b. Énfasis intercalado: caja negra/letra amarilla, caja amarilla/letra negra, caja negra…
+  await check('énfasis con cajas intercaladas', () => page.evaluate(() => {
+    const R = window.SubFX_Renderer, ST = window.SubFX_Styles;
+    const st = ST.make(Object.assign({}, ST.PRESETS.find(p => p.id === 'enfasis'), { cueIn: 'none', emPop: false, maxWords: 0, maxWidth: 100, posY: 50, shadowOpacity: 0 }));
+    const words = ['yo', 'quiero', 'que', 'te', 'lo', 'supere'].map((t, i) => ({ ref: { id: 'w' + i, text: t, ovr: [1, 3, 5].includes(i) ? { em: true } : {} }, ws: i * 0.3, we: i * 0.3 + 0.3 }));
+    const W = 2400, H = 600;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    R.renderChunk(x, W, H, { id: 'e', cueId: 'e', start: 0, end: 2, words }, 1.9, st);
+    const d = x.getImageData(0, H / 2, W, 1).data;
+    const boxes = [];
+    for (let X = 1; X < W - 6; X++) {
+      const i = X * 4;
+      if (d[i - 1] < 200 && d[i + 3] >= 200) {          // entra en algo opaco
+        const j = (X + 4) * 4, r = d[j], g = d[j + 1], b = d[j + 2];
+        if (r < 30 && g < 30 && b < 30) boxes.push('negra');
+        else if (r > 230 && g > 230 && b < 190) boxes.push('amarilla');
+      }
+    }
+    if (boxes.join() !== 'negra,amarilla,negra') throw new Error('cajas: ' + boxes.join(','));
+    return boxes.join(' → ');
+  }));
+
   // 3. Sombras múltiples, contornos y contorno interior
   await check('sombras y contornos', () => page.evaluate(() => {
     const R = window.SubFX_Renderer, ST = window.SubFX_Styles;
@@ -135,6 +158,16 @@ function wav(file, secs, spans) {
     expect(words === 'Cuidado con tu peor empleado', 'reemplazo: ' + words);
     await page.click('#btnAutoKey');
     expect((await page.$$eval('.chip.key', e => e.length)) === 2, 'debería haber 1 palabra clave por línea');
+  });
+
+  // 6b. Marcar énfasis desde el panel
+  await check('marca palabras con énfasis', async () => {
+    await page.click('.tab[data-tab="fx"]');
+    await page.click('.cue:first-child .chip:nth-child(4)');
+    await page.click('label.toggle:has(#ovEm)');
+    const n = await page.$$eval('.chip.em', e => e.length);
+    expect(n === 1, 'chips con énfasis: ' + n);
+    await page.keyboard.press('Escape');
   });
 
   // 7. Exportar ASS

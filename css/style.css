@@ -25,6 +25,8 @@
   --l4: #B8497A;
   --radius-card: 22px;
   --radius-ctl: 999px;
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --smooth: cubic-bezier(.22, 1, .36, 1);
   --font: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
@@ -245,6 +247,8 @@ input.tc:focus { border-color: var(--ink); background: var(--field); }
 .chip:hover { border-color: var(--line-mid); }
 .chip.has-color .chip-text { color: var(--wc); text-shadow: 0 0 1px rgba(0, 0, 0, .5); }
 .chip.key { background: var(--accent); border-color: var(--ink); }
+.chip.em { background: #000; border-color: #000; color: var(--accent); }
+.chip.em.em-b { background: var(--accent); border-color: #000; color: #000; }
 .chip.has-fx { border-style: dashed; border-color: var(--ink); }
 .chip .fx-tag { font-style: normal; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .chip.sel { background: var(--ink); border-color: var(--ink); color: var(--bg); }
@@ -448,4 +452,94 @@ details.tool:last-child { border-bottom: 1px solid var(--line); }
 .toast.warn { background: var(--accent); }
 .toast.err { background: var(--err); border-color: var(--err); color: #fff; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
+
+/* ───────────── Movimiento ─────────────
+ * Solo transform y opacity (baratos en el CEF de Premiere).
+ * prefers-reduced-motion los desactiva más abajo.
+ */
+.btn, .quick button, .seg button, .layer-tab, .layer-add, .icon-btn, .layer-pill, .menu button, .play, .pill-toggle {
+  transition: background-color .2s var(--smooth), color .2s var(--smooth), border-color .2s var(--smooth), transform .35s var(--spring), box-shadow .25s var(--smooth);
+}
+.btn:hover, .quick button:hover, .seg button:hover, .layer-add:hover, .pill-toggle:hover { transform: translateY(-1px); }
+.btn:active, .quick button:active, .seg button:active, .layer-tab:active, .layer-pill:active, .pill-toggle:active, .icon-btn:active { transform: scale(.94); transition-duration: .08s; }
+.btn.primary:hover { box-shadow: 0 6px 18px -8px rgba(27, 30, 26, .55); }
+.play:hover { transform: scale(1.07); }
+.play:active { transform: scale(.9); }
+
+/* Pestañas: indicador que se desliza */
+.tabs { position: relative; }
+.tab.active { box-shadow: none; }
+.tabs::after {
+  content: ""; position: absolute; bottom: -1px; left: 0; height: 2px; background: var(--ink);
+  width: var(--tab-w, 0); transform: translateX(var(--tab-x, 0)); transition: transform .45s var(--spring), width .35s var(--smooth);
+}
+.tab { transition: color .2s, background-color .25s var(--smooth); }
+.tab-panel.active { animation: panelIn .38s var(--smooth); }
+@keyframes panelIn { from { opacity: 0; transform: translateY(8px); } }
+
+/* Acordeones suaves (la altura la anima JS) */
+details.sec summary::before { transition: transform .3s var(--spring); }
+details.sec .sec-body { overflow: hidden; }
+
+/* Chips */
+.chip { transition: background-color .18s var(--smooth), color .18s var(--smooth), border-color .18s, transform .3s var(--spring); }
+.chip:hover { transform: translateY(-1px); }
+.chip:active { transform: scale(.92); transition-duration: .06s; }
+.chip.sel, .chip.key, .chip.em { animation: chipPop .34s var(--spring); }
+@keyframes chipPop { 0% { transform: scale(.86); } 100% { transform: scale(1); } }
+.chip.live::after { animation: liveBar .25s var(--smooth); transform-origin: left; }
+@keyframes liveBar { from { transform: scaleX(0); } }
+
+/* Filas: entrada escalonada al cargar un archivo */
+.cue-list.enter .cue { animation: rowIn .5s var(--smooth) both; animation-delay: calc(var(--i, 0) * 28ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(10px); } }
+.cue { transition: background-color .35s var(--smooth); }
+
+/* Tarjetas de presets y efectos */
+.style-card, .fx-card { transition: transform .35s var(--spring), border-color .2s, box-shadow .25s var(--smooth); }
+.style-card:hover, .fx-card:hover { transform: translateY(-3px); box-shadow: 0 10px 22px -14px rgba(27, 30, 26, .5); }
+.style-card:active, .fx-card:active { transform: scale(.97); transition-duration: .08s; }
+.style-card canvas, .fx-card canvas { transition: transform .5s var(--smooth); }
+.style-card:hover canvas, .fx-card:hover canvas { transform: scale(1.04); }
+.style-card.on, .fx-card.on { animation: cardOn .45s var(--spring); }
+@keyframes cardOn { 0% { transform: scale(.95); } 100% { transform: scale(1); } }
+.style-gallery .style-card { animation: rowIn .45s var(--smooth) both; animation-delay: calc(var(--i, 0) * 22ms); }
+
+/* Toggles y sliders */
+.toggle span::before { transition: transform .4s var(--spring), border-color .2s; }
+.toggle span { transition: background-color .25s var(--smooth); }
+.toggle:active span::before { width: 24px; }
+input[type=range]::-webkit-slider-thumb { transition: transform .25s var(--spring), background-color .15s; }
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.35); background: var(--accent); }
+
+/* Contador de selección */
+.sel-count { transition: background-color .2s, border-color .2s; }
+.sel-count.bump { animation: bump .35s var(--spring); }
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+/* Toasts, modal, menú */
+.toast { animation: toastIn .45s var(--spring); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+.modal:not([hidden]) { animation: fadeIn .2s var(--smooth); }
+.modal:not([hidden]) .modal-card { animation: popIn .4s var(--spring); }
+.menu:not([hidden]) { animation: popIn .28s var(--spring); transform-origin: top right; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.94) translateY(-4px); } }
+
+/* Progreso con brillo mientras renderiza */
+.progress .bar i { position: relative; overflow: hidden; transition: width .3s var(--smooth); }
+.progress .bar i::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(250, 255, 150, .8), transparent);
+  animation: shimmer 1.2s linear infinite;
+}
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* Línea de tiempo */
+.tl-cue { transition: opacity .2s, outline-color .2s; }
+.tl-s { animation: fadeIn .4s var(--smooth); }
+
+/* Confeti de celebración */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 70; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

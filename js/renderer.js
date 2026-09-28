@@ -499,6 +499,8 @@
       charsLeft = CA.type * total;
     }
 
+    const EM_POP = 0.18;
+    let emIndex = 0;
     L.items.forEach(it => {
       const w = it.w, ov = it.ov;
       const phase = phaseOf(w, t);
@@ -535,6 +537,28 @@
       }
       if (ov.color) { fill = ov.color; fill2 = null; }
 
+      // Énfasis: caja negra con letra amarilla / caja amarilla con letra negra, intercaladas
+      let wordStyle = style;
+      const em = style.emMode !== 'none' && (ov.em || (style.emOnKey && ov.key));
+      if (em) {
+        const dark = style.emMode === 'dark' || (style.emMode === 'alternate' && emIndex % 2 === 0);
+        emIndex++;
+        fill = dark ? style.emColorA : style.emColorB;
+        fill2 = null;
+        box = {
+          fill: dark ? style.emColorB : style.emColorA,
+          padX: it.fs * (style.emPad == null ? 0.16 : style.emPad), padY: it.fs * 0.08, r: (style.emRadius || 0) * L.u
+        };
+        hs *= style.emScale || 1;
+        if (style.emPop && phase === 1 && t - w.ws < EM_POP) hs *= 1 + 0.18 * FX.ease.bump((t - w.ws) / EM_POP);
+        if (style.emPlain !== false) {
+          wordStyle = Object.assign({}, style, {
+            strokeWidth: 0, stroke2Width: 0, stroke3Width: 0, glow: 0,
+            shadowOpacity: 0, shadow2Opacity: 0, shadow3Opacity: 0
+          });
+        }
+      }
+
       let reveal = 1;
       if (charsLeft !== Infinity) {
         const n = Array.from(it.text).length;
@@ -544,7 +568,7 @@
 
       drawWord(ctx, {
         text: it.text, x: it.x, y: it.y, fs: it.fs, width: it.width,
-        fill, fill2, style, T, hs, box, vis, u: L.u, reveal, split: CA.split
+        fill, fill2, style: wordStyle, T, hs, box, vis, u: L.u, reveal, split: CA.split
       });
     });
     ctx.restore();
@@ -588,6 +612,7 @@
       const ov = w.ref.ovr || {};
       const phase = phaseOf(w, t);
       if (phase === 1 && (style.hlMode === 'current' || style.hlMode === 'spoken') && style.hlScale !== 1 && t - w.ws < HL_EASE) return null;
+      if (style.emPop && style.emMode !== 'none' && (ov.em || (style.emOnKey && ov.key)) && t >= w.ws && t - w.ws < 0.18) return null;
       const fx = FX.get(ov.fx || style.wordFx);
       const lt = (t - w.ws) * (ov.speed || 1);
       if (fx && !FX.isSettled(fx, lt)) return null;
