@@ -13,6 +13,7 @@
   const AU = window.SubFX_Audio;
   const ZM = window.SubFX_Zoom;
   const TR = window.SubFX_Transcribe;
+  const PX = window.SubFX_Proxy;
 
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -287,7 +288,14 @@
   function tick(ts) {
     const dt = lastTs ? Math.min(0.1, (ts - lastTs) / 1000) : 0;
     lastTs = ts;
-    if (followHost(ts)) dirty = true;
+    if (VID.on && !VID.el.paused && (S.playing || (HOST.on && HOST.rate))) {
+      // El vídeo manda (sin requestVideoFrameCallback se usa su currentTime)
+      if (!VID.el.requestVideoFrameCallback) { S.time = VID.el.currentTime - hostOffset(); dirty = true; }
+      if (S.playing) {
+        const end = S.playEnd != null ? S.playEnd : duration;
+        if (S.time >= end) { S.time = S.playEnd != null ? S.playEnd - 0.001 : S.time; setPlaying(false); }
+      }
+    } else if (followHost(ts)) dirty = true;
     else if (S.playing) {
       S.time += dt;
       const end = S.playEnd != null ? S.playEnd : duration;
@@ -307,12 +315,165 @@
     S.playEnd = on ? (end == null ? null : end) : null;
     document.body.classList.toggle('playing', on);
     if (on && S.time >= duration - 0.05) S.time = 0;
+    if (VID.on) {
+      const v = VID.el;
+      if (on) {
+        v.muted = VID.muted;
+        v.playbackRate = 1;
+        if (Math.abs(v.currentTime - (S.time + hostOffset())) > 0.02) v.currentTime = S.time + hostOffset();
+        v.play().catch(() => { /* sin audio permitido: se reproduce en silencio */ v.muted = true; v.play().catch(() => {}); });
+      } else {
+        if (!v.paused) v.pause();
+        // En pausa se muestra el fotograma de v.currentTime: el panel se alinea a él
+        S.time = Math.max(0, Math.min(duration, v.currentTime - hostOffset()));
+      }
+    }
     markDirty();
   }
   function seek(t, fromHost) {
     S.time = Math.max(0, Math.min(duration, t));
+    if (VID.on && !S.playing && !(HOST.on && HOST.rate)) VID.el.currentTime = S.time + hostOffset();
     markDirty();
     if (!fromHost) pushPlayhead();
+  }
+
+  // ───────────── Vídeo de referencia (proxy) ─────────────
+  /*
+   * El vídeo es el reloj maestro: requestVideoFrameCallback entrega el tiempo exacto del
+   * fotograma que se está mostrando y en ese mismo instante se dibujan los subtítulos.
+   */
+  const VID = { el: document.getElementById('refVideo'), on: false, muted: false, path: null };
+  function videoFrameLoop() {
+    const v = VID.el;
+    if (!v.requestVideoFrameCallback) return;
+    const cb = (now, meta) => {
+      if (VID.on && !v.paused && (S.playing || (HOST.on && HOST.rate))) {
+        S.time = Math.max(0, Math.min(duration, meta.mediaTime - hostOffset()));
+        dirty = false;
+        draw();
+      }
+      v.requestVideoFrameCallback(cb);
+    };
+    v.requestVideoFrameCallback(cb);
+  }
+
+  function loadVideo(url, label, path) {
+    const v = VID.el;
+    v.src = url;
+    v.hidden = false;
+    v.muted = VID.muted;
+    v.addEventListener('loadedmetadata', function once() {
+      v.removeEventListener('loadedmetadata', once);
+      VID.on = true;
+      VID.path = path || null;
+      document.body.classList.add('has-video');
+      $('#stage').classList.add('has-video');
+      v.currentTime = S.time + hostOffset();
+      badge(`${label} · ${v.videoWidth}×${v.videoHeight}`, 3500);
+      if (path) { S.settings.proxyPath = path; saveSession(); }
+      markDirty();
+    });
+    v.addEventListener('error', function onerr() {
+      v.removeEventListener('error', onerr);
+      toast('Este vídeo no se puede reproducir en el panel. Prueba con H.264 (.mp4) o WebM.', 'err', 6000);
+      unloadVideo();
+    });
+  }
+  function unloadVideo() {
+    const v = VID.el;
+    v.pause();
+    v.removeAttribute('src');
+    v.load();
+    v.hidden = true;
+    VID.on = false;
+    S.settings.proxyPath = '';
+    saveSession();
+    document.body.classList.remove('has-video');
+    $('#stage').classList.remove('has-video');
+    markDirty();
+  }
+  let badgeTimer = null;
+  function badge(text, ms) {
+    const b = $('#stageBadge');
+    b.textContent = text;
+    b.hidden = !text;
+    clearTimeout(badgeTimer);
+    if (ms) badgeTimer = setTimeout(() => { b.hidden = true; }, ms);
+  }
+
+  const fileUrl = p => 'file://' + (/^[A-Za-z]:/.test(p) ? '/' : '') + encodeURI(String(p).replace(/\\/g, '/')).replace(/#/g, '%23');
+
+  let proxying = false;
+  async function buildProxy() {
+    if (!CEP.available) { toast('El proxy se crea dentro de Premiere. Aquí puedes «Cargar un vídeo exportado…»', 'warn', 5000); return; }
+    if (proxying) return;
+    const ff = S.settings.ffmpeg || PX.findFfmpeg();
+    if (!ff) {
+      toast('Instala ffmpeg (Mac: brew install ffmpeg · Windows: winget install ffmpeg) o exporta un .mp4 de baja calidad desde Premiere y usa «Cargar un vídeo exportado…»', 'warn', 9000);
+      return;
+    }
+    proxying = true;
+    const t0 = performance.now();
+    try {
+      badge('Proxy: leyendo el timeline…');
+      const vt = S.settings.zoom.track || 0;
+      const vi = await CEP.call('getVideoClips', 'track', String(vt));
+      if (!vi || !vi.ok) throw new Error((vi && vi.error) || 'Premiere no respondió');
+      const ai = await CEP.call('getAudioClips', String(S.settings.tr.track || 0));
+      const aclips = ai && ai.ok ? ai.clips.filter(c => c.path) : [];
+      const durationS = Math.max(0, ...vi.clips.map(c => c.end), ...aclips.map(c => c.end));
+      if (!durationS) throw new Error('El timeline está vacío');
+      let wav = null;
+      if (aclips.length) {
+        const decoded = {};
+        const paths = Array.from(new Set(aclips.map(c => c.path)));
+        for (let i = 0; i < paths.length; i++) { badge(`Proxy: audio ${i + 1}/${paths.length}…`); decoded[paths[i]] = await decodeMedia(paths[i]); }
+        wav = TR.encodeWav(TR.mixTimeline(aclips, decoded, 0, durationS).samples, TR.SR);
+      }
+      const codec = VID.el.canPlayType('video/mp4; codecs="avc1.42E01E"') ? 'h264' : 'vp8';
+      const dir = CEP.systemPath('userData') + '/SubtitleEngine/proxies';
+      CEP.fs.mkdirp(dir);
+      const out = await PX.makeProxy({
+        bin: ff, clips: vi.clips, wav, W: vi.width || frameSize().W, H: vi.height || frameSize().H, fps: vi.fps || seqFps(),
+        duration: durationS, codec, dir, onProgress: p => badge(`Proxy: ${Math.round(p * 100)} %`)
+      });
+      loadVideo(fileUrl(out), `Proxy listo en ${((performance.now() - t0) / 1000).toFixed(0)} s`, out);
+      toast('Proxy listo: dale play en el panel para ver los subtítulos en tiempo real con el vídeo', 'ok', 4500);
+    } catch (err) {
+      badge('');
+      toast('Proxy: ' + err.message, 'err', 7000);
+    } finally { proxying = false; }
+  }
+
+  function bindVideo() {
+    videoFrameLoop();
+    const menu = $('#videoMenu');
+    $('#btnVideo').addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+    document.addEventListener('click', () => { menu.hidden = true; });
+    menu.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      menu.hidden = true;
+      if (b.dataset.v === 'proxy') buildProxy();
+      else if (b.dataset.v === 'file') $('#videoFile').click();
+      else if (b.dataset.v === 'mute') { VID.muted = !VID.muted; VID.el.muted = VID.muted; toast(VID.muted ? 'Audio del vídeo silenciado' : 'Audio del vídeo activado'); }
+      else if (b.dataset.v === 'off') unloadVideo();
+    });
+    $('#videoFile').addEventListener('change', e => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      const p = f.path || null; // CEP expone la ruta real del archivo
+      loadVideo(URL.createObjectURL(f), f.name, p);
+    });
+    VID.el.addEventListener('ended', () => setPlaying(false));
+    // Tras un salto (o una pausa desde Premiere) el fotograma mostrado es el de currentTime
+    VID.el.addEventListener('seeked', () => {
+      if (VID.el.paused) { S.time = Math.max(0, Math.min(duration, VID.el.currentTime - hostOffset())); markDirty(); }
+    });
+    // Recuperar el último proxy
+    const last = S.settings.proxyPath;
+    if (last && CEP.available && CEP.fs.exists(last)) loadVideo(fileUrl(last), 'Proxy anterior', last);
   }
 
   function previewSelection() {
@@ -358,9 +519,18 @@
     HOST.still = HOST.rate === 0 ? HOST.still + 1 : 0;
     HOST.t = r.t;
     HOST.wall = wall;
+    if (VID.on) {
+      const v = VID.el;
+      if (HOST.rate !== 0) {
+        v.muted = true; // el audio ya suena en Premiere
+        v.playbackRate = Math.max(0.25, Math.min(4, Math.abs(HOST.rate)));
+        if (HOST.rate < 0 || Math.abs(v.currentTime - r.t) > 0.15) v.currentTime = r.t;
+        if (v.paused && HOST.rate > 0) v.play().catch(() => {});
+      } else if (!v.paused) v.pause();
+    }
     if (HOST.rate === 0) {
       seek(r.t - hostOffset(), true);
-      if (HOST.still === 2 && $('#chkLiveBg').checked && HOST.grabbedAt !== r.t) liveGrab(r.t);
+      if (HOST.still === 2 && !VID.on && $('#chkLiveBg').checked && HOST.grabbedAt !== r.t) liveGrab(r.t);
     }
     document.body.classList.toggle('host-playing', HOST.rate !== 0);
   }
@@ -2816,6 +2986,7 @@
     bindExport();
     bindTools();
     bindTranscribe();
+    bindVideo();
     bindProject();
     bindKeys();
     refreshSelectionUI();

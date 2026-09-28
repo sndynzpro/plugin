@@ -319,6 +319,31 @@ function wav(file, secs, spans) {
     } finally { srv.close(); }
   });
 
+  // 12. Vídeo de referencia: los subtítulos siguen al fotograma presentado
+  const FF = process.env.FFMPEG_PATH || (() => { try { require('child_process').execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); return 'ffmpeg'; } catch (e) { return null; } })();
+  if (FF) await check('vídeo de referencia sincronizado al fotograma', async () => {
+    const f = path.join(os.tmpdir(), 'subtitleengine-ref.webm');
+    require('child_process').execFileSync(FF, ['-hide_banner', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=540x960:r=30:d=12', '-c:v', 'libvpx', '-deadline', 'realtime', '-g', '30', f], { stdio: 'ignore' });
+    await page.click('#btnVideo');
+    await page.click('#videoMenu [data-v="file"]');
+    await page.setInputFiles('#videoFile', f);
+    await page.waitForFunction(() => document.body.classList.contains('has-video'), null, { timeout: 8000 });
+    await page.click('#btnPlay');
+    await page.waitForTimeout(1500);
+    await page.click('#btnPlay');
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const v = document.getElementById('refVideo');
+      const [h, m, sec, fr] = document.getElementById('timeLabel').textContent.split(':').map(Number);
+      return { video: v.currentTime, panel: (h * 3600 + m * 60 + sec) + fr / 30, rvfc: !!v.requestVideoFrameCallback, paused: v.paused };
+    });
+    expect(r.paused, 'el vídeo sigue reproduciéndose');
+    expect(r.video > 0.8, 'el vídeo no avanzó: ' + r.video);
+    expect(Math.abs(r.video - r.panel) <= 1 / 30 + 1e-3, `desfase ${(r.video - r.panel).toFixed(3)} s`);
+    await page.screenshot({ path: path.join(OUT, 'video-referencia.png') });
+    return `vídeo ${r.video.toFixed(3)} s · panel ${r.panel.toFixed(3)} s · rVFC ${r.rvfc ? 'sí' : 'no'}`;
+  });
+
   await check('sin errores de JavaScript', async () => { expect(!errors.length, errors.join(' | ')); });
 
   await browser.close();

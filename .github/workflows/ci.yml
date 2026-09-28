@@ -30,6 +30,8 @@ jobs:
       - run: npm ci
       - name: Comprobaciones estáticas (manifiesto, ES3, scripts)
         run: npm run check
+      - name: ffmpeg (proxy y vídeo de referencia)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Tests unitarios
         run: npm test
       - name: Navegador para las pruebas de interfaz

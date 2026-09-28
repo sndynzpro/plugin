@@ -113,8 +113,10 @@
   <section class="card preview-card">
     <div class="stage" id="stage">
       <div class="stage-inner" id="stageInner">
+        <video id="refVideo" playsinline preload="auto" hidden></video>
         <canvas id="preview"></canvas>
       </div>
+      <div class="stage-badge" id="stageBadge" hidden></div>
     </div>
     <div class="transport">
       <button class="play" id="btnPlay" title="Reproducir / pausar (Espacio)" aria-label="Reproducir">
@@ -138,6 +140,16 @@
       <label class="pill-toggle" title="Muestra las zonas seguras del estilo">
         <input type="checkbox" id="chkSafe" checked><span></span>Zona segura
       </label>
+      <div class="menu-wrap">
+        <button class="btn small" id="btnVideo" aria-haspopup="true" title="Vídeo de referencia debajo de los subtítulos, sincronizado al fotograma">Vídeo ▾</button>
+        <div class="menu up" id="videoMenu" hidden>
+          <button data-v="proxy">Crear proxy del timeline (ffmpeg)</button>
+          <button data-v="file">Cargar un vídeo exportado…</button>
+          <button data-v="mute">Silenciar / activar audio</button>
+          <button data-v="off">Quitar el vídeo</button>
+        </div>
+        <input type="file" id="videoFile" accept="video/*" hidden>
+      </div>
       <button class="btn small" id="btnGrab" title="Usa el fotograma actual de Premiere como fondo">Capturar fotograma</button>
       <select class="mini-select" id="selBg" title="Fondo de la vista previa">
         <option value="checker">Transparente</option>
@@ -555,6 +567,7 @@
 <script src="js/audio.js"></script>
 <script src="js/zoom.js"></script>
 <script src="js/transcribe.js"></script>
+<script src="js/proxy.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
